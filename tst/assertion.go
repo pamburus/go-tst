@@ -44,15 +44,15 @@ func BeFalse() Assertion {
 	return boolean{false}
 }
 
-// HaveNotOccurred returns an assertion that passes in case all the values to be tested are nil errors.
-func HaveNotOccurred() Assertion {
-	return nilError{}
+// HaveOccurred returns an assertion that passes in case all the values to be tested are non-nil errors.
+func HaveOccurred() Assertion {
+	return Not(nilError{})
 }
 
 // MatchError returns an assertion that passes in case all the values to be tested are errors that pass test `errors.Is(actual, expected)`.
 func MatchError(expected error) Assertion {
 	if expected == nil {
-		return HaveNotOccurred()
+		return nilError{}
 	}
 
 	return matchError{expected}
@@ -198,6 +198,10 @@ func (a not) check(actual []any) (bool, error) {
 }
 
 func (a not) description() string {
+	if inner, ok := a.assertion.(not); ok {
+		return inner.assertion.description()
+	}
+
 	if a.assertion.complexity() > 1 {
 		return "not\n" + indent(1, a.assertion.description())
 	}
