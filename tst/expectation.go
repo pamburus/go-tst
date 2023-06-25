@@ -124,6 +124,32 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 	return SuccessExpectation{}
 }
 
+// ToFail builds expectation for a non-nil error value that is expected be the last in the list of values
+// assuming these values are return values from a function call.
+//
+// All other values are ignored in this expectation.
+func (e Expectation) ToFail() {
+	if len(e.actual) == 0 {
+		e.t.Log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
+		e.t.FailNow()
+	}
+
+	last := e.actual[len(e.actual)-1]
+	if last != nil {
+		_, ok := last.(error)
+		if !ok {
+			e.t.Log(msg("last value to test", value{last}, expDescText("be", "an error")))
+			e.t.FailNow()
+		}
+
+		return
+	}
+
+	e.t.Helper()
+	e.t.Log(msg("error", value{last}, expDescText("be", "non-nil error")))
+	e.t.FailNow()
+}
+
 // ToFailWith builds expectation for an error value that is expected be the last in the list of values
 // assuming these values are return values from a function call.
 //
