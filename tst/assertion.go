@@ -44,6 +44,11 @@ func BeFalse() Assertion {
 	return boolean{false}
 }
 
+// BeZero returns an assertion that passes in case all the values to be tested are zero initialized.
+func BeZero() Assertion {
+	return zero{}
+}
+
 // HaveOccurred returns an assertion that passes in case all the values to be tested are non-nil errors.
 func HaveOccurred() Assertion {
 	return Not(nilError{})
@@ -115,6 +120,28 @@ func (a boolean) description() string {
 }
 
 func (a boolean) complexity() int {
+	return 1
+}
+
+// ---
+
+type zero struct{}
+
+func (a zero) check(actual []any) (bool, error) {
+	for i := range actual {
+		if !reflect.ValueOf(actual[i]).IsZero() {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (a zero) description() string {
+	return "be zero"
+}
+
+func (a zero) complexity() int {
 	return 1
 }
 
