@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// New construct a new Test based on the t.
+// New constructs a new Test based on the t.
 func New(t *testing.T) Test {
 	return Test{t}
 }
