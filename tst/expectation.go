@@ -23,10 +23,10 @@ func (e Expectation) To(assertions ...Assertion) {
 			if e.check(assertions[0], e.actual) {
 				return
 			}
-			e.t.Log(msg("values", values(e.actual), assertions[0]))
+			e.log(msg("values", values(e.actual), assertions[0]))
 			e.t.FailNow()
 		} else {
-			e.t.Log(msg("number of values to test", value{len(e.actual)}, expDesc("be", len(assertions))))
+			e.log(msg("number of values to test", value{len(e.actual)}, expDesc("be", len(assertions))))
 			e.t.FailNow()
 		}
 	}
@@ -37,7 +37,7 @@ func (e Expectation) To(assertions ...Assertion) {
 			if len(e.actual) != 1 {
 				what = fmt.Sprintf("value #%d", i)
 			}
-			e.t.Log(msg(what, value{e.actual[i]}, assertions[i]))
+			e.log(msg(what, value{e.actual[i]}, assertions[i]))
 			e.t.Fail()
 		}
 	}
@@ -99,7 +99,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 	e.t.Helper()
 
 	if len(e.actual) == 0 {
-		e.t.Log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
+		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
 		e.t.FailNow()
 	}
 
@@ -110,7 +110,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 
 	actual, ok := last.(error)
 	if !ok {
-		e.t.Log(msg("last value to test", value{last}, expDescText("be", "an error")))
+		e.log(msg("last value to test", value{last}, expDescText("be", "an error")))
 		e.t.FailNow()
 	}
 
@@ -118,7 +118,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 		return SuccessExpectation{e}
 	}
 
-	e.t.Log(msg("error", value{actual}, expDesc("be", nil)))
+	e.log(msg("error", value{actual}, expDesc("be", nil)))
 	e.t.FailNow()
 
 	return SuccessExpectation{}
@@ -130,7 +130,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 // All other values are ignored in this expectation.
 func (e Expectation) ToFail() {
 	if len(e.actual) == 0 {
-		e.t.Log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
+		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
 		e.t.FailNow()
 	}
 
@@ -138,7 +138,7 @@ func (e Expectation) ToFail() {
 	if last != nil {
 		_, ok := last.(error)
 		if !ok {
-			e.t.Log(msg("last value to test", value{last}, expDescText("be", "an error")))
+			e.log(msg("last value to test", value{last}, expDescText("be", "an error")))
 			e.t.FailNow()
 		}
 
@@ -146,7 +146,7 @@ func (e Expectation) ToFail() {
 	}
 
 	e.t.Helper()
-	e.t.Log(msg("error", value{last}, expDescText("be", "non-nil error")))
+	e.log(msg("error", value{last}, expDescText("be", "non-nil error")))
 	e.t.FailNow()
 }
 
@@ -156,7 +156,7 @@ func (e Expectation) ToFail() {
 // All other values are ignored in this expectation.
 func (e Expectation) ToFailWith(err error) {
 	if len(e.actual) == 0 {
-		e.t.Log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
+		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
 		e.t.FailNow()
 	}
 
@@ -167,7 +167,7 @@ func (e Expectation) ToFailWith(err error) {
 
 	actual, ok := last.(error)
 	if !ok {
-		e.t.Log(msg("last value to test", value{last}, expDescText("be", "an error")))
+		e.log(msg("last value to test", value{last}, expDescText("be", "an error")))
 		e.t.FailNow()
 	}
 
@@ -176,7 +176,7 @@ func (e Expectation) ToFailWith(err error) {
 	}
 
 	e.t.Helper()
-	e.t.Log(msg("error", value{actual}, expDesc("be like", err)))
+	e.log(msg("error", value{actual}, expDesc("be like", err)))
 	e.t.FailNow()
 }
 
@@ -187,14 +187,30 @@ func (e Expectation) check(assertion Assertion, actual []any) bool {
 	if err != nil {
 		var ee errNumberOfValuesToTestDiffers
 		if errors.As(err, &ee) {
-			e.t.Log(msg("number of values to test", value{ee.actual}, expDesc("be", ee.expected)))
+			e.log(msg("number of values to test", value{ee.actual}, expDesc("be", ee.expected)))
 		} else {
-			e.t.Log(err)
+			e.log(err)
 		}
 		e.t.FailNow()
 	}
 
 	return ok
+}
+
+func (e Expectation) log(args ...any) {
+	e.t.Helper()
+
+	if len(e.t.tags) != 0 {
+		var b strings.Builder
+		for _, tag := range e.t.tags {
+			b.WriteString(tag.String())
+			b.WriteByte(':')
+			b.WriteByte(' ')
+		}
+		args = append([]any{b.String()}, args...)
+	}
+
+	e.t.Log(args...)
 }
 
 // ---
