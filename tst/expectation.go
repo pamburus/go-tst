@@ -155,6 +155,7 @@ func (e Expectation) ToFail() {
 //
 // All other values are ignored in this expectation.
 func (e Expectation) ToFailWith(err error) {
+	e.t.Helper()
 	if len(e.actual) == 0 {
 		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
 		e.t.FailNow()
