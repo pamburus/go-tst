@@ -69,7 +69,7 @@ func MatchError(expected error) Assertion {
 }
 
 // HaveLen returns an assertion that passes in case all the values to be tested have length equal to the specified value.
-func HaveLen(n int) Assertion {
+func HaveLen(n ...int) Assertion {
 	return haveLen{n}
 }
 
@@ -250,20 +250,32 @@ func (a matchError) complexity() int {
 // ---
 
 type haveLen struct {
-	expected int
+	expected []int
 }
 
 func (a haveLen) check(actual []any) (bool, error) {
+	if len(a.expected) != len(actual) && len(a.expected) != 1 {
+		return false, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+	}
+
+	expected := func(i int) int {
+		if len(a.expected) == 1 {
+			return a.expected[0]
+		}
+
+		return a.expected[i]
+	}
+
 	for i := range actual {
 		v := reflect.ValueOf(actual[i])
 		switch v.Kind() {
 		case reflect.Chan, reflect.Map, reflect.Slice, reflect.Array, reflect.String:
-			if v.Len() == a.expected {
+			if v.Len() == expected(i) {
 				continue
 			}
 		case reflect.Ptr:
 			if v.Elem().Kind() == reflect.Array {
-				if v.Len() == a.expected {
+				if v.Len() == expected(i) {
 					continue
 				}
 			}
@@ -276,7 +288,11 @@ func (a haveLen) check(actual []any) (bool, error) {
 }
 
 func (a haveLen) description() string {
+<<<<<<< ours
 	return "be have length\n" + indent(1, value{a.expected}.description())
+=======
+	return "have length\n" + indent(1, values(anySlice(a.expected)).description())
+>>>>>>> theirs
 }
 
 func (a haveLen) complexity() int {
@@ -397,4 +413,14 @@ func combineAssertionChecks(assertions []Assertion, actual []any, initial bool, 
 	}
 
 	return result, nil
+}
+
+func anySlice[T any](slice []T) []any {
+	result := make([]any, len(slice))
+
+	for i := range slice {
+		result[i] = slice[i]
+	}
+
+	return result
 }
