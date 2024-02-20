@@ -18,27 +18,42 @@ type Expectation struct {
 func (e Expectation) To(assertions ...Assertion) {
 	e.t.Helper()
 
+	assertion := func(i int) Assertion {
+		return assertions[i]
+	}
+
 	if len(e.actual) != len(assertions) {
-		if len(assertions) == 1 && len(e.actual) > 1 {
-			if e.check(assertions[0], e.actual) {
-				return
-			}
-			e.log(msg("values", values(e.actual), assertions[0]))
-			e.t.FailNow()
-		} else {
+		if len(assertions) != 1 || len(e.actual) <= 1 {
 			e.log(msg("number of values to test", value{len(e.actual)}, expDesc("be", len(assertions))))
 			e.t.FailNow()
 		}
+		assertion = func(int) Assertion {
+			return assertions[0]
+		}
 	}
 
-	for i := range e.actual {
-		if !e.check(assertions[i], []any{e.actual[i]}) {
-			what := ""
-			if len(e.actual) != 1 {
-				what = fmt.Sprintf("value #%d", i)
+	fail := func(i int, assertion Assertion) {
+		e.t.Helper()
+		what := ""
+		if len(e.actual) != 1 {
+			what = fmt.Sprintf("value #%d", i)
+		}
+		e.log(msg(what, value{e.actual[i]}, assertion))
+		e.t.Fail()
+	}
+
+	if len(assertions) == 1 && len(e.actual) > 1 {
+		ok := e.check(assertions[0], e.actual)
+		for i := range e.actual {
+			if !ok[i] {
+				fail(i, assertions[0].at(i))
 			}
-			e.log(msg(what, value{e.actual[i]}, assertions[i]))
-			e.t.Fail()
+		}
+	} else {
+		for i := range e.actual {
+			if !e.check(assertion(i), []any{e.actual[i]})[0] {
+				fail(i, assertion(i))
+			}
 		}
 	}
 
@@ -181,7 +196,7 @@ func (e Expectation) ToFailWith(err error) {
 	e.t.FailNow()
 }
 
-func (e Expectation) check(assertion Assertion, actual []any) bool {
+func (e Expectation) check(assertion Assertion, actual []any) []bool {
 	e.t.Helper()
 
 	ok, err := assertion.check(actual)
