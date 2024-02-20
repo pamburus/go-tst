@@ -68,6 +68,11 @@ func MatchError(expected error) Assertion {
 	return matchError{expected}
 }
 
+// HaveLen returns an assertion that passes in case all the values to be tested have length equal to the specified value.
+func HaveLen(n int) Assertion {
+	return haveLen{n}
+}
+
 // ---
 
 // Assertion is an abstract assertion that can be composite and can be used to build expectations.
@@ -239,6 +244,42 @@ func (a matchError) description() string {
 }
 
 func (a matchError) complexity() int {
+	return 1
+}
+
+// ---
+
+type haveLen struct {
+	expected int
+}
+
+func (a haveLen) check(actual []any) (bool, error) {
+	for i := range actual {
+		v := reflect.ValueOf(actual[i])
+		switch v.Kind() {
+		case reflect.Chan, reflect.Map, reflect.Slice, reflect.Array, reflect.String:
+			if v.Len() == a.expected {
+				continue
+			}
+		case reflect.Ptr:
+			if v.Elem().Kind() == reflect.Array {
+				if v.Len() == a.expected {
+					continue
+				}
+			}
+		}
+
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (a haveLen) description() string {
+	return "be have length\n" + indent(1, value{a.expected}.description())
+}
+
+func (a haveLen) complexity() int {
 	return 1
 }
 
