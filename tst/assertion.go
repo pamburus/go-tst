@@ -40,9 +40,19 @@ func BeLessThan(values ...any) Assertion {
 	return comparison{values, lt, "less than"}
 }
 
+// LessThan returns an assertion that passes in case values to be tested using it are less than corresponding specified values.
+func LessThan(values ...any) Assertion {
+	return BeLessThan(values...)
+}
+
 // BeLessOrEqualThan returns an assertion that passes in case values to be tested using it are less or equal than corresponding specified values.
 func BeLessOrEqualThan(values ...any) Assertion {
 	return comparison{values, le, "less or equal than"}
+}
+
+// LessOrEqualThan returns an assertion that passes in case values to be tested using it are less or equal than corresponding specified values.
+func LessOrEqualThan(values ...any) Assertion {
+	return BeLessOrEqualThan(values...)
 }
 
 // BeGreaterThan returns an assertion that passes in case values to be tested using it are greater than corresponding specified values.
@@ -50,9 +60,19 @@ func BeGreaterThan(values ...any) Assertion {
 	return comparison{values, gt, "greater than"}
 }
 
+// GreaterThan returns an assertion that passes in case values to be tested using it are greater than corresponding specified values.
+func GreaterThan(values ...any) Assertion {
+	return BeGreaterThan(values...)
+}
+
 // BeGreaterOrEqualThan returns an assertion that passes in case values to be tested using it are greater or equal than corresponding specified values.
 func BeGreaterOrEqualThan(values ...any) Assertion {
 	return comparison{values, ge, "greater or equal than"}
+}
+
+// GreaterOrEqualThan returns an assertion that passes in case values to be tested using it are greater or equal than corresponding specified values.
+func GreaterOrEqualThan(values ...any) Assertion {
+	return BeGreaterOrEqualThan(values...)
 }
 
 // BeTrue returns an assertion that passes in case all the values to be tested are boolean and equal to true.
@@ -90,7 +110,7 @@ func MatchError(expected error) Assertion {
 }
 
 // HaveLen returns an assertion that passes in case all the values to be tested have length equal to the specified value.
-func HaveLen(n ...int) Assertion {
+func HaveLen(n ...any) Assertion {
 	return haveLen{n}
 }
 
@@ -372,7 +392,7 @@ func (a matchError) at(int) Assertion {
 // ---
 
 type haveLen struct {
-	expected []int
+	expected []any
 }
 
 func (a haveLen) check(actual []any) ([]bool, error) {
@@ -388,34 +408,55 @@ func (a haveLen) check(actual []any) ([]bool, error) {
 		return a.expected[i]
 	}
 
+	test := func(i int, actual int, expected any) (bool, error) {
+		switch expected := expected.(type) {
+		case Assertion:
+			ok, err := expected.check([]any{actual})
+			if err != nil {
+				return false, err
+			}
+
+			return ok[0], nil
+		case int:
+			return actual == expected, nil
+		default:
+			return false, errUnexpectedValueType{i, typeOf(actual), typeOf(expected)}
+		}
+	}
+
 	result := make([]bool, len(actual))
 
 	for i := range actual {
+		var err error
 		v := reflect.ValueOf(actual[i])
+
 		switch v.Kind() {
 		case reflect.Chan, reflect.Map, reflect.Slice, reflect.Array, reflect.String:
-			if v.Len() == expected(i) {
-				result[i] = true
-
-				continue
-			}
+			result[i], err = test(i, v.Len(), expected(i))
 		case reflect.Ptr:
 			if v.Elem().Kind() == reflect.Array {
-				if v.Len() == expected(i) {
-					result[i] = true
-
-					continue
-				}
+				result[i], err = test(i, v.Len(), expected(i))
+			} else {
+				return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(expected(i))}
 			}
+		default:
+			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(expected(i))}
 		}
-
-		result[i] = false
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
 }
 
 func (a haveLen) description() string {
+	if len(a.expected) == 1 {
+		if assertion, ok := a.expected[0].(Assertion); ok {
+			return "have length that is expected to " + assertion.description()
+		}
+	}
+
 	return "have length\n" + indent(1, values(anySlice(a.expected)).description())
 }
 
@@ -428,7 +469,7 @@ func (a haveLen) at(i int) Assertion {
 		return a
 	}
 
-	return haveLen{[]int{a.expected[i]}}
+	return haveLen{[]any{a.expected[i]}}
 }
 
 // ---

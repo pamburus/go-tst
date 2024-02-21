@@ -3,6 +3,7 @@ package tst
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -293,16 +294,31 @@ type value struct {
 
 func (v value) description() string {
 	comment := ""
+	length := -1
 	switch vv := v.v.(type) {
 	case nil:
 		return "<nil>"
 	case []byte:
 		comment = fmt.Sprintf(" | %q", vv)
+		length = len(vv)
 	case fmt.Stringer:
-		comment = fmt.Sprintf(" | %s", vv)
+		s := vv.String()
+		length = len(s)
+		comment = fmt.Sprintf(" | %s", s)
+	default:
+		rv := reflect.ValueOf(vv)
+		switch rv.Kind() {
+		case reflect.Array, reflect.Slice, reflect.Map, reflect.String, reflect.Chan:
+			length = rv.Len()
+		}
 	}
 
-	return fmt.Sprintf("<%T>: %#v%s", v.v, v.v, comment)
+	ls := ""
+	if length != -1 {
+		ls = fmt.Sprintf("[%d] ", length)
+	}
+
+	return fmt.Sprintf("<%T>: %s%#v%s", v.v, ls, v.v, comment)
 }
 
 // ---
