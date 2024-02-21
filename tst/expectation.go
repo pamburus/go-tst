@@ -37,7 +37,7 @@ func (e Expectation) To(assertions ...Assertion) {
 		e.t.Helper()
 		what := ""
 		if len(e.actual) != 1 {
-			what = fmt.Sprintf("value #%d", i)
+			what = fmt.Sprintf("value #%d", i+1)
 		}
 		e.log(msg(what, value{e.actual[i]}, assertion))
 		e.t.Fail()
@@ -331,7 +331,7 @@ func (v values) description() string {
 
 	var sb strings.Builder
 	for i := range v {
-		fmt.Fprintf(&sb, "[#%d] %s\n", i, value{v[i]}.description())
+		fmt.Fprintf(&sb, "[#%d] %s\n", i+1, value{v[i]}.description())
 	}
 
 	return strings.TrimRight(sb.String(), "\n")

@@ -126,9 +126,20 @@ func HaveField(name string, assertion Assertion) Assertion {
 	return haveField{name, assertion}
 }
 
+// Field returns an assertion that passes in case all the struct values to be tested have a field with the specified name and the specified assertion passes for the field value.
+// It is an alias for HaveField and is provided for better readability when used in [Struct] or [Contain] assertions.
+func Field(name string, assertion Assertion) Assertion {
+	return haveField{name, assertion}
+}
+
 // Contain returns an assertion that passes in case all the array or slice values to be tested contain at least one element matching each of the given assertions.
 func Contain(assertion Assertion) Assertion {
 	return contain{assertion}
+}
+
+// Struct returns an assertion that passes in case all the values to be tested are structs each of them containing at least one field matching any of the expected field assertions.
+func Struct(fields ...Assertion) Assertion {
+	return beStruct{fields}
 }
 
 // ---
@@ -652,6 +663,63 @@ func (a contain) complexity() int {
 }
 
 func (a contain) at(int) Assertion {
+	return a
+}
+
+// ---
+
+type beStruct struct {
+	assertions []Assertion
+}
+
+func (a beStruct) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
+	for i := range actual {
+		v := reflect.ValueOf(actual[i])
+
+		for v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+
+		if v.Kind() != reflect.Struct {
+			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "struct"}
+		}
+
+		result[i] = true
+		for _, assertion := range a.assertions {
+			ok, err := assertion.check([]any{actual[i]})
+			if err != nil {
+				return nil, err
+			}
+			if !ok[0] {
+				result[i] = false
+
+				break
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func (a beStruct) description() string {
+	sb := strings.Builder{}
+	sb.WriteString("be a struct that is expected to\n")
+	for i, assertion := range a.assertions {
+		fmt.Fprintf(&sb, "%d. ", i+1)
+		sb.WriteString(indent(1, assertion.description()))
+		sb.WriteRune('\n')
+	}
+
+	return sb.String()
+}
+
+func (a beStruct) complexity() int {
+	return 2
+}
+
+func (a beStruct) at(int) Assertion {
 	return a
 }
 
