@@ -34,6 +34,27 @@ func NotEqual(values ...any) Assertion {
 	return Not(Equal(values...))
 }
 
+// BeLessThan returns an assertion that passes in case values to be tested using it are less than corresponding specified values.
+// Number of values to test with this assertion must match the number of the specified values.
+func BeLessThan(values ...any) Assertion {
+	return comparison{values, lt, "less than"}
+}
+
+// BeLessOrEqualThan returns an assertion that passes in case values to be tested using it are less or equal than corresponding specified values.
+func BeLessOrEqualThan(values ...any) Assertion {
+	return comparison{values, le, "less or equal than"}
+}
+
+// BeGreaterThan returns an assertion that passes in case values to be tested using it are greater than corresponding specified values.
+func BeGreaterThan(values ...any) Assertion {
+	return comparison{values, gt, "greater than"}
+}
+
+// BeGreaterOrEqualThan returns an assertion that passes in case values to be tested using it are greater or equal than corresponding specified values.
+func BeGreaterOrEqualThan(values ...any) Assertion {
+	return comparison{values, ge, "greater or equal than"}
+}
+
 // BeTrue returns an assertion that passes in case all the values to be tested are boolean and equal to true.
 func BeTrue() Assertion {
 	return boolean{true}
@@ -124,6 +145,57 @@ func (a equal) at(i int) Assertion {
 	}
 
 	return equal{[]any{a.expected[i]}}
+}
+
+// ---
+
+type comparison struct {
+	expected            []any
+	expectedResult      func(int) bool
+	expectedDescription string
+}
+
+func (a comparison) check(actual []any) ([]bool, error) {
+	if len(a.expected) != len(actual) && len(a.expected) != 1 {
+		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+	}
+
+	expected := func(i int) any {
+		if len(a.expected) == 1 {
+			return a.expected[0]
+		}
+
+		return a.expected[i]
+	}
+
+	result := make([]bool, len(actual))
+	for i := range actual {
+		actual := reflect.ValueOf(actual[i])
+		expected := reflect.ValueOf(expected(i))
+		r, err := compare(i, actual, expected)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = a.expectedResult(r)
+	}
+
+	return result, nil
+}
+
+func (a comparison) description() string {
+	return "be " + a.expectedDescription + "\n" + indent(1, values(a.expected).description())
+}
+
+func (a comparison) complexity() int {
+	return 1
+}
+
+func (a comparison) at(i int) Assertion {
+	if len(a.expected) == 1 {
+		return a
+	}
+
+	return comparison{[]any{a.expected[i]}, a.expectedResult, a.expectedDescription}
 }
 
 // ---
@@ -512,4 +584,125 @@ func anySlice[T any](values []T) []any {
 	}
 
 	return result
+}
+
+func compare(i int, actual, expected reflect.Value) (int, error) {
+	fail := func() (int, error) {
+		return 0, errUnexpectedValueType{i, typeOf(actual.Interface()), typeOf(expected.Interface())}
+	}
+	succeed := func(result int) (int, error) {
+		return result, nil
+	}
+
+	switch actual.Kind() {
+	case reflect.Bool:
+		if actual.Kind() != expected.Kind() {
+			return fail()
+		}
+
+		if actual.Bool() == expected.Bool() {
+			return succeed(0)
+		}
+
+		if actual.Bool() {
+			return succeed(1)
+		}
+
+		return succeed(-1)
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		switch expected.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			switch {
+			case actual.Int() > expected.Int():
+				return succeed(1)
+			case actual.Int() < expected.Int():
+				return succeed(-1)
+			default:
+				return succeed(0)
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if actual.Int() < 0 {
+				return succeed(-1)
+			}
+			switch {
+			case uint64(actual.Int()) > expected.Uint():
+				return succeed(1)
+			case uint64(actual.Int()) < expected.Uint():
+				return succeed(-1)
+			default:
+				return succeed(0)
+			}
+		default:
+			return fail()
+		}
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		switch expected.Kind() {
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			switch {
+			case actual.Uint() > expected.Uint():
+				return succeed(1)
+			case actual.Uint() < expected.Uint():
+				return succeed(-1)
+			default:
+				return succeed(0)
+			}
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if expected.Int() < 0 {
+				return succeed(1)
+			}
+			switch {
+			case actual.Uint() > uint64(expected.Int()):
+				return succeed(1)
+			case actual.Uint() < uint64(expected.Int()):
+				return succeed(-1)
+			default:
+				return succeed(0)
+			}
+		default:
+			return fail()
+		}
+
+	case reflect.Float32, reflect.Float64:
+		switch expected.Kind() {
+		case reflect.Float32, reflect.Float64:
+			switch {
+			case actual.Float() > expected.Float():
+				return succeed(1)
+			case actual.Float() < expected.Float():
+				return succeed(-1)
+			default:
+				return succeed(0)
+			}
+		default:
+			return fail()
+		}
+
+	case reflect.String:
+		if actual.Kind() != expected.Kind() {
+			return fail()
+		}
+
+		return succeed(strings.Compare(actual.String(), expected.String()))
+
+	default:
+		return fail()
+	}
+}
+
+func lt(r int) bool {
+	return r < 0
+}
+
+func le(r int) bool {
+	return r <= 0
+}
+
+func gt(r int) bool {
+	return r > 0
+}
+
+func ge(r int) bool {
+	return r >= 0
 }
