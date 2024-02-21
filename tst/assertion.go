@@ -69,7 +69,7 @@ func MatchError(expected error) Assertion {
 }
 
 // HaveLen returns an assertion that passes in case all the values to be tested have length equal to the specified value.
-func HaveLen(n int) Assertion {
+func HaveLen(n ...int) Assertion {
 	return haveLen{n}
 }
 
@@ -77,9 +77,10 @@ func HaveLen(n int) Assertion {
 
 // Assertion is an abstract assertion that can be composite and can be used to build expectations.
 type Assertion interface {
-	check(actual []any) (bool, error)
+	check(actual []any) ([]bool, error)
 	description() string
 	complexity() int
+	at(int) Assertion
 }
 
 // ---
@@ -88,12 +89,25 @@ type equal struct {
 	expected []any
 }
 
-func (a equal) check(actual []any) (bool, error) {
-	if len(a.expected) != len(actual) {
-		return false, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+func (a equal) check(actual []any) ([]bool, error) {
+	if len(a.expected) != len(actual) && len(a.expected) != 1 {
+		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
 	}
 
-	return reflect.DeepEqual(actual, a.expected), nil
+	expected := func(i int) any {
+		if len(a.expected) == 1 {
+			return a.expected[0]
+		}
+
+		return a.expected[i]
+	}
+
+	result := make([]bool, len(actual))
+	for i := range actual {
+		result[i] = reflect.DeepEqual(actual[i], expected(i))
+	}
+
+	return result, nil
 }
 
 func (a equal) description() string {
@@ -104,25 +118,33 @@ func (a equal) complexity() int {
 	return 1
 }
 
+func (a equal) at(i int) Assertion {
+	if len(a.expected) == 1 {
+		return a
+	}
+
+	return equal{[]any{a.expected[i]}}
+}
+
 // ---
 
 type boolean struct {
 	expected bool
 }
 
-func (a boolean) check(actual []any) (bool, error) {
+func (a boolean) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
 	for i := range actual {
 		value, ok := actual[i].(bool)
 		if !ok {
-			return false, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(a.expected)}
+			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(a.expected)}
 		}
 
-		if value != a.expected {
-			return false, nil
-		}
+		result[i] = value == a.expected
 	}
 
-	return true, nil
+	return result, nil
 }
 
 func (a boolean) description() string {
@@ -133,18 +155,21 @@ func (a boolean) complexity() int {
 	return 1
 }
 
+func (a boolean) at(int) Assertion {
+	return a
+}
+
 // ---
 
 type zero struct{}
 
-func (a zero) check(actual []any) (bool, error) {
+func (a zero) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
 	for i := range actual {
-		if !reflect.ValueOf(actual[i]).IsZero() {
-			return false, nil
-		}
+		result[i] = reflect.ValueOf(actual[i]).IsZero()
 	}
 
-	return true, nil
+	return result, nil
 }
 
 func (a zero) description() string {
@@ -155,24 +180,33 @@ func (a zero) complexity() int {
 	return 1
 }
 
+func (a zero) at(int) Assertion {
+	return a
+}
+
 // ---
 
 type nilValue struct{}
 
-func (a nilValue) check(actual []any) (bool, error) {
+func (a nilValue) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
 	for i := range actual {
+		if actual[i] == nil {
+			result[i] = true
+
+			continue
+		}
+
 		v := reflect.ValueOf(actual[i])
 		switch v.Kind() {
 		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
-			if v.IsNil() {
-				continue
-			}
+			result[i] = v.IsNil()
+		default:
+			result[i] = false
 		}
-
-		return false, nil
 	}
 
-	return true, nil
+	return result, nil
 }
 
 func (a nilValue) description() string {
@@ -183,27 +217,33 @@ func (a nilValue) complexity() int {
 	return 1
 }
 
+func (a nilValue) at(int) Assertion {
+	return a
+}
+
 // ---
 
 type nilError struct{}
 
-func (a nilError) check(actual []any) (bool, error) {
+func (a nilError) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
 	for i := range actual {
 		if actual[i] == nil {
+			result[i] = true
+
 			continue
 		}
 
 		val, ok := actual[i].(error)
 		if !ok {
-			return false, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(val)}
+			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(val)}
 		}
 
-		if val != nil {
-			return false, nil
-		}
+		result[i] = val == nil
 	}
 
-	return true, nil
+	return result, nil
 }
 
 func (a nilError) description() string {
@@ -214,29 +254,35 @@ func (a nilError) complexity() int {
 	return 1
 }
 
+func (a nilError) at(int) Assertion {
+	return a
+}
+
 // ---
 
 type matchError struct {
 	expected error
 }
 
-func (a matchError) check(actual []any) (bool, error) {
+func (a matchError) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
 	for i := range actual {
 		if actual[i] == nil {
-			return false, nil
+			result[i] = false
+
+			continue
 		}
 
 		val, ok := actual[i].(error)
 		if !ok {
-			return false, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(val)}
+			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(val)}
 		}
 
-		if !errors.Is(val, a.expected) {
-			return false, nil
-		}
+		result[i] = errors.Is(val, a.expected)
 	}
 
-	return true, nil
+	return result, nil
 }
 
 func (a matchError) description() string {
@@ -247,40 +293,70 @@ func (a matchError) complexity() int {
 	return 1
 }
 
+func (a matchError) at(int) Assertion {
+	return a
+}
+
 // ---
 
 type haveLen struct {
-	expected int
+	expected []int
 }
 
-func (a haveLen) check(actual []any) (bool, error) {
+func (a haveLen) check(actual []any) ([]bool, error) {
+	if len(a.expected) != len(actual) && len(a.expected) != 1 {
+		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+	}
+
+	expected := func(i int) any {
+		if len(a.expected) == 1 {
+			return a.expected[0]
+		}
+
+		return a.expected[i]
+	}
+
+	result := make([]bool, len(actual))
+
 	for i := range actual {
 		v := reflect.ValueOf(actual[i])
 		switch v.Kind() {
 		case reflect.Chan, reflect.Map, reflect.Slice, reflect.Array, reflect.String:
-			if v.Len() == a.expected {
+			if v.Len() == expected(i) {
+				result[i] = true
+
 				continue
 			}
 		case reflect.Ptr:
 			if v.Elem().Kind() == reflect.Array {
-				if v.Len() == a.expected {
+				if v.Len() == expected(i) {
+					result[i] = true
+
 					continue
 				}
 			}
 		}
 
-		return false, nil
+		result[i] = false
 	}
 
-	return true, nil
+	return result, nil
 }
 
 func (a haveLen) description() string {
-	return "be have length\n" + indent(1, value{a.expected}.description())
+	return "have length\n" + indent(1, values(anySlice(a.expected)).description())
 }
 
 func (a haveLen) complexity() int {
 	return 1
+}
+
+func (a haveLen) at(i int) Assertion {
+	if len(a.expected) == 1 {
+		return a
+	}
+
+	return haveLen{[]int{a.expected[i]}}
 }
 
 // ---
@@ -289,13 +365,17 @@ type not struct {
 	assertion Assertion
 }
 
-func (a not) check(actual []any) (bool, error) {
-	ok, err := a.assertion.check(actual)
+func (a not) check(actual []any) ([]bool, error) {
+	result, err := a.assertion.check(actual)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return !ok, nil
+	for i := range result {
+		result[i] = !result[i]
+	}
+
+	return result, nil
 }
 
 func (a not) description() string {
@@ -314,13 +394,17 @@ func (a not) complexity() int {
 	return 1
 }
 
+func (a not) at(i int) Assertion {
+	return Not(a.assertion.at(i))
+}
+
 // ---
 
 type and struct {
 	assertions []Assertion
 }
 
-func (a and) check(actual []any) (bool, error) {
+func (a and) check(actual []any) ([]bool, error) {
 	return combineAssertionChecks(a.assertions, actual, true, func(x, y bool) bool {
 		return x && y
 	})
@@ -334,13 +418,22 @@ func (a and) complexity() int {
 	return len(a.assertions)
 }
 
+func (a and) at(int) Assertion {
+	assertions := make([]Assertion, len(a.assertions))
+	for i := range a.assertions {
+		assertions[i] = a.assertions[i].at(i)
+	}
+
+	return and{assertions}
+}
+
 // ---
 
 type or struct {
 	assertions []Assertion
 }
 
-func (a or) check(actual []any) (bool, error) {
+func (a or) check(actual []any) ([]bool, error) {
 	return combineAssertionChecks(a.assertions, actual, false, func(x, y bool) bool {
 		return x || y
 	})
@@ -352,6 +445,15 @@ func (a or) description() string {
 
 func (a or) complexity() int {
 	return len(a.assertions)
+}
+
+func (a or) at(int) Assertion {
+	assertions := make([]Assertion, len(a.assertions))
+	for i := range a.assertions {
+		assertions[i] = a.assertions[i].at(i)
+	}
+
+	return or{assertions}
 }
 
 // ---
@@ -380,21 +482,34 @@ func combineAssertionDescriptions(operator string, assertions []Assertion) strin
 	return sb.String()
 }
 
-func combineAssertionChecks(assertions []Assertion, actual []any, initial bool, operator func(bool, bool) bool) (bool, error) {
+func combineAssertionChecks(assertions []Assertion, actual []any, initial bool, operator func(bool, bool) bool) ([]bool, error) {
 	if len(assertions) == 0 {
-		return false, errors.New("expected 1 or more assertion in composite assertion")
+		return nil, errors.New("expected 1 or more assertion in composite assertion")
 	}
 
-	result := initial
+	result := make([]bool, len(actual))
+	for i := range result {
+		result[i] = initial
 
-	for i := range assertions {
-		ok, err := assertions[i].check(actual)
-		if err != nil {
-			return false, err
+		for j := range assertions {
+			ok, err := assertions[j].check(actual)
+			if err != nil {
+				return nil, err
+			}
+
+			result[i] = operator(result[i], ok[i])
 		}
-
-		result = operator(result, ok)
 	}
 
 	return result, nil
+}
+
+func anySlice[T any](values []T) []any {
+	result := make([]any, len(values))
+
+	for i, v := range values {
+		result[i] = v
+	}
+
+	return result
 }
