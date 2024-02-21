@@ -303,8 +303,7 @@ func (v value) description() string {
 		length = len(vv)
 	case fmt.Stringer:
 		s := vv.String()
-		length = len(s)
-		comment = fmt.Sprintf(" | %s", s)
+		comment = fmt.Sprintf(" | [%d] %s", len(s), s)
 	default:
 		rv := reflect.ValueOf(vv)
 		switch rv.Kind() {
