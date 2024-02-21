@@ -25,7 +25,7 @@ type errUnexpectedValueType struct {
 }
 
 func (e errUnexpectedValueType) Error() string {
-	return fmt.Sprintf("value to test #%d is expected to have type <%s> but it has type <%s>", e.index, e.expected, e.actual)
+	return fmt.Sprintf("value to test #%d is expected to have type <%s> but it has type <%s>", e.index+1, e.expected, e.actual)
 }
 
 // ---
@@ -37,7 +37,7 @@ type errUnexpectedAssertionType struct {
 }
 
 func (e errUnexpectedAssertionType) Error() string {
-	return fmt.Sprintf("value in assertion #%d is expected to have type <%s> but it has type <%s>", e.index, e.expected, e.actual)
+	return fmt.Sprintf("value in assertion #%d is expected to have type <%s> but it has type <%s>", e.index+1, e.expected, e.actual)
 }
 
 // ---
