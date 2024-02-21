@@ -29,6 +29,12 @@ func Equal(values ...any) Assertion {
 	return equal{values}
 }
 
+// EqualUsing returns an assertion that passes in case values to be tested are equal to the specified values
+// using the equality test function f.
+func EqualUsing(f any, values ...any) Assertion {
+	return equalUsing{f, values}
+}
+
 // NotEqual returns an assertion that passes in case values to be tested using it not equal to the specified values.
 // Number of values to test with this assertion must match the number of the specified values.
 func NotEqual(values ...any) Assertion {
@@ -171,6 +177,68 @@ func (a equal) complexity() int {
 }
 
 func (a equal) at(i int) Assertion {
+	if len(a.expected) == 1 {
+		return a
+	}
+
+	return equal{[]any{a.expected[i]}}
+}
+
+// ---
+
+type equalUsing struct {
+	f        any
+	expected []any
+}
+
+func (a equalUsing) check(actual []any) ([]bool, error) {
+	if len(a.expected) != len(actual) && len(a.expected) != 1 {
+		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+	}
+
+	expected := func(i int) any {
+		if len(a.expected) == 1 {
+			return a.expected[0]
+		}
+
+		return a.expected[i]
+	}
+
+	rf := reflect.ValueOf(a.f)
+	if rf.Kind() != reflect.Func {
+		return nil, errUnexpectedAssertionType{0, typeOf(a.f), "function"}
+	}
+
+	if rf.Type().NumIn() != 2 || rf.Type().NumOut() != 1 {
+		return nil, errUnexpectedAssertionType{0, typeOf(a.f), "function with two arguments and one return value"}
+	}
+
+	if rf.Type().In(0) != reflect.TypeOf(actual[0]) || rf.Type().In(1) != reflect.TypeOf(expected(0)) {
+		return nil, errUnexpectedAssertionType{0, typeOf(a.f), fmt.Sprintf("func(%s, %s) bool", typeOf(actual[0]), typeOf(expected(0)))}
+	}
+
+	if rf.Type().Out(0) != reflect.TypeOf(true) {
+		return nil, errUnexpectedAssertionType{0, typeOf(a.f), "function with return value of type bool"}
+	}
+
+	result := make([]bool, len(actual))
+	for i := range actual {
+		out := rf.Call([]reflect.Value{reflect.ValueOf(actual[i]), reflect.ValueOf(expected(i))})
+		result[i] = out[0].Bool()
+	}
+
+	return result, nil
+}
+
+func (a equalUsing) description() string {
+	return "equal to\n" + indent(1, values(a.expected).description())
+}
+
+func (a equalUsing) complexity() int {
+	return 1
+}
+
+func (a equalUsing) at(i int) Assertion {
 	if len(a.expected) == 1 {
 		return a
 	}
