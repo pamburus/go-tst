@@ -30,6 +30,18 @@ func (e errUnexpectedValueType) Error() string {
 
 // ---
 
+type errUnexpectedAssertionType struct {
+	index    int
+	actual   string
+	expected string
+}
+
+func (e errUnexpectedAssertionType) Error() string {
+	return fmt.Sprintf("value in assertion #%d is expected to have type <%s> but it has type <%s>", e.index, e.expected, e.actual)
+}
+
+// ---
+
 func typeOf[V any](v V) string {
 	if any(v) == nil {
 		return reflect.TypeOf(&v).Elem().String()
