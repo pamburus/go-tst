@@ -120,6 +120,11 @@ func HaveField(name string, assertion Assertion) Assertion {
 	return haveField{name, assertion}
 }
 
+// Contain returns an assertion that passes in case all the array or slice values to be tested contain at least one element matching each of the given assertions.
+func Contain(assertion Assertion) Assertion {
+	return contain{assertion}
+}
+
 // ---
 
 // Assertion is an abstract assertion that can be composite and can be used to build expectations.
@@ -526,6 +531,59 @@ func (a haveField) complexity() int {
 }
 
 func (a haveField) at(int) Assertion {
+	return a
+}
+
+// ---
+
+type contain struct {
+	assertion Assertion
+}
+
+func (a contain) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
+	for i := range actual {
+		var err error
+		v := reflect.ValueOf(actual[i])
+
+		for v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+
+		switch v.Kind() {
+		case reflect.Array, reflect.Slice:
+			for j := 0; j < v.Len(); j++ {
+				ok, err := a.assertion.check([]any{v.Index(j).Interface()})
+				if err != nil {
+					return nil, err
+				}
+				if ok[0] {
+					result[i] = true
+
+					break
+				}
+			}
+		default:
+			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "array or slice"}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+func (a contain) description() string {
+	return fmt.Sprintf("contain an element that is expected to\n%s", indent(1, a.assertion.description()))
+}
+
+func (a contain) complexity() int {
+	return 2
+}
+
+func (a contain) at(int) Assertion {
 	return a
 }
 
