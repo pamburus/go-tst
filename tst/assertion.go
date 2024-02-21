@@ -49,6 +49,11 @@ func BeZero() Assertion {
 	return zero{}
 }
 
+// BeNil returns an assertion that passes in case all the values to be tested are nil.
+func BeNil() Assertion {
+	return nilValue{}
+}
+
 // HaveOccurred returns an assertion that passes in case all the values to be tested are non-nil errors.
 func HaveOccurred() Assertion {
 	return Not(nilError{})
@@ -142,6 +147,34 @@ func (a zero) description() string {
 }
 
 func (a zero) complexity() int {
+	return 1
+}
+
+// ---
+
+type nilValue struct{}
+
+func (a nilValue) check(actual []any) (bool, error) {
+	for i := range actual {
+		v := reflect.ValueOf(actual[i])
+		switch v.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+			if v.IsNil() {
+				continue
+			}
+		}
+
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (a nilValue) description() string {
+	return "be nil"
+}
+
+func (a nilValue) complexity() int {
 	return 1
 }
 
