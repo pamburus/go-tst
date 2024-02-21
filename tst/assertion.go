@@ -3,6 +3,7 @@ package tst
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 )
@@ -112,6 +113,11 @@ func MatchError(expected error) Assertion {
 // HaveLen returns an assertion that passes in case all the values to be tested have length equal to the specified value.
 func HaveLen(n ...any) Assertion {
 	return haveLen{n}
+}
+
+// HaveField returns an assertion that passes in case all the struct values to be tested have a field with the specified name and the specified assertion passes for the field value.
+func HaveField(name string, assertion Assertion) Assertion {
+	return haveField{name, assertion}
 }
 
 // ---
@@ -470,6 +476,57 @@ func (a haveLen) at(i int) Assertion {
 	}
 
 	return haveLen{[]any{a.expected[i]}}
+}
+
+// ---
+
+type haveField struct {
+	name      string
+	assertion Assertion
+}
+
+func (a haveField) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
+	for i := range actual {
+		var err error
+		v := reflect.ValueOf(actual[i])
+
+		for v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+
+		switch v.Kind() {
+		case reflect.Struct:
+			field := v.FieldByName(a.name)
+			if field.IsValid() {
+				r, err := a.assertion.check([]any{field.Interface()})
+				if err != nil {
+					return nil, err
+				}
+				result[i] = r[0]
+			}
+		default:
+			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "struct"}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+func (a haveField) description() string {
+	return fmt.Sprintf("have field %q that is expected to %s", a.name, a.assertion.description())
+}
+
+func (a haveField) complexity() int {
+	return 1
+}
+
+func (a haveField) at(int) Assertion {
+	return a
 }
 
 // ---
