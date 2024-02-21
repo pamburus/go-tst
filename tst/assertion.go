@@ -9,18 +9,18 @@ import (
 )
 
 // Not returns an assertion that passes in case the specified assertion do not pass and vise versa.
-func Not(assertion Assertion) Assertion {
-	return not{assertion}
+func Not[T Assertion](assertion T) T {
+	return any(not[T]{assertion}).(T)
 }
 
 // And returns an assertion that passes in case all of the specified assertions pass.
-func And(assertions ...Assertion) Assertion {
-	return and{assertions}
+func And[T Assertion](assertions ...T) T {
+	return and[T]{assertions}
 }
 
 // Or returns an assertion that passes in case any of the specified assertions pass.
-func Or(assertions ...Assertion) Assertion {
-	return or{assertions}
+func Or[T Assertion](assertions ...T) T {
+	return or[T]{assertions}
 }
 
 // Equal returns an assertion that passes in case values to be tested using it equal to the specified values.
@@ -98,8 +98,17 @@ func BeZero() Assertion {
 }
 
 // BeNil returns an assertion that passes in case all the values to be tested are nil.
-func BeNil() Assertion {
+func BeNil() ToBeAssertion {
 	return nilValue{}
+}
+
+// BeNil returns an assertion that passes in case all the values to be tested are nil.
+func Nil() ToBeAssertion {
+	return nilValue{}
+}
+
+func NotNil() ToBeAssertion {
+	return Not(nilValue{})
 }
 
 // HaveOccurred returns an assertion that passes in case all the values to be tested are non-nil errors.
@@ -126,9 +135,19 @@ func HaveField(name string, assertion Assertion) Assertion {
 	return haveField{name, assertion}
 }
 
+// Field returns an assertion that passes in case all the struct values to be tested have a field with the specified name and the specified assertion passes for the field value.
+// It is an alias for HaveField and is provided for better readability when used in [Struct] or [Contain] assertions.
+func Field(name string, assertion Assertion) FieldAssertion {
+	return haveField{name, assertion}
+}
+
 // Contain returns an assertion that passes in case all the array or slice values to be tested contain at least one element matching each of the given assertions.
 func Contain(assertion Assertion) Assertion {
 	return contain{assertion}
+}
+
+func Struct(fields ...FieldAssertion) Assertion {
+	return beStruct{fields}
 }
 
 // ---
@@ -139,6 +158,16 @@ type Assertion interface {
 	description() string
 	complexity() int
 	at(int) Assertion
+}
+
+type FieldAssertion interface {
+	Assertion
+	fieldName() string
+}
+
+type ToBeAssertion interface {
+	Assertion
+	toBeAssertion()
 }
 
 // ---
@@ -392,6 +421,8 @@ func (a nilValue) at(int) Assertion {
 	return a
 }
 
+func (a nilValue) toBeAssertion() {}
+
 // ---
 
 type nilError struct{}
@@ -602,6 +633,10 @@ func (a haveField) at(int) Assertion {
 	return a
 }
 
+func (a haveField) fieldName() string {
+	return a.name
+}
+
 // ---
 
 type contain struct {
@@ -657,11 +692,11 @@ func (a contain) at(int) Assertion {
 
 // ---
 
-type not struct {
-	assertion Assertion
+type not[T Assertion] struct {
+	assertion T
 }
 
-func (a not) check(actual []any) ([]bool, error) {
+func (a not[T]) check(actual []any) ([]bool, error) {
 	result, err := a.assertion.check(actual)
 	if err != nil {
 		return nil, err
@@ -674,8 +709,8 @@ func (a not) check(actual []any) ([]bool, error) {
 	return result, nil
 }
 
-func (a not) description() string {
-	if inner, ok := a.assertion.(not); ok {
+func (a not[T]) description() string {
+	if inner, ok := any(a.assertion).(not[T]); ok {
 		return inner.assertion.description()
 	}
 
@@ -686,41 +721,41 @@ func (a not) description() string {
 	return "not " + a.assertion.description()
 }
 
-func (a not) complexity() int {
+func (a not[T]) complexity() int {
 	return 1
 }
 
-func (a not) at(i int) Assertion {
+func (a not[T]) at(i int) Assertion {
 	return Not(a.assertion.at(i))
 }
 
 // ---
 
-type and struct {
-	assertions []Assertion
+type and[T Assertion] struct {
+	assertions []T
 }
 
-func (a and) check(actual []any) ([]bool, error) {
+func (a and[T]) check(actual []any) ([]bool, error) {
 	return combineAssertionChecks(a.assertions, actual, true, func(x, y bool) bool {
 		return x && y
 	})
 }
 
-func (a and) description() string {
+func (a and[T]) description() string {
 	return combineAssertionDescriptions("and", a.assertions)
 }
 
-func (a and) complexity() int {
+func (a and[T]) complexity() int {
 	return len(a.assertions)
 }
 
-func (a and) at(int) Assertion {
-	assertions := make([]Assertion, len(a.assertions))
+func (a and[T]) at(int) Assertion {
+	assertions := make([]T, len(a.assertions))
 	for i := range a.assertions {
-		assertions[i] = a.assertions[i].at(i)
+		assertions[i] = (a.assertions[i].at(i)).(T)
 	}
 
-	return and{assertions}
+	return and[T]{assertions}
 }
 
 // ---
@@ -754,7 +789,7 @@ func (a or) at(int) Assertion {
 
 // ---
 
-func combineAssertionDescriptions(operator string, assertions []Assertion) string {
+func combineAssertionDescriptions[T Assertion](operator string, assertions []T) string {
 	if len(assertions) == 1 {
 		return assertions[0].description()
 	}
@@ -778,7 +813,7 @@ func combineAssertionDescriptions(operator string, assertions []Assertion) strin
 	return sb.String()
 }
 
-func combineAssertionChecks(assertions []Assertion, actual []any, initial bool, operator func(bool, bool) bool) ([]bool, error) {
+func combineAssertionChecks[T Assertion](assertions []T, actual []any, initial bool, operator func(bool, bool) bool) ([]bool, error) {
 	if len(assertions) == 0 {
 		return nil, errors.New("expected 1 or more assertion in composite assertion")
 	}
