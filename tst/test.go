@@ -26,7 +26,7 @@ func (t Test) Run(name string, f func(Test)) {
 
 // Expect begins expectation building process against the given values.
 func (t Test) Expect(values ...any) Expectation {
-	return Expectation{&t, values}
+	return Expectation{&t, values, t.tags}
 }
 
 // WithLineTag returns a new Test that adds information about the line where it was called to the error messages.

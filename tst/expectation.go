@@ -7,12 +7,15 @@ import (
 	"strings"
 )
 
+type ExpectFunc func(values ...any) Expectation
+
 // ---
 
 // Expectation is an expectation builder that have associated values to be tested against assertions.
 type Expectation struct {
-	t      *Test
+	t      reportTarget
 	actual []any
+	tags   []LineTag
 }
 
 // To tests that the associated values conform all of the the given assertions.
@@ -33,27 +36,32 @@ func (e Expectation) To(assertions ...Assertion) {
 		}
 	}
 
-	fail := func(i int, assertion Assertion) {
+	fail := func(i int, assertion Assertion, desc string) {
 		e.t.Helper()
 		what := ""
 		if len(e.actual) != 1 {
 			what = fmt.Sprintf("value #%d", i+1)
 		}
-		e.log(msg(what, value{e.actual[i]}, assertion))
+		if desc != "" {
+			e.log(msgWithDesc(what, value{e.actual[i]}, desc))
+		} else {
+			e.log(msg(what, value{e.actual[i]}, assertion))
+		}
 		e.t.Fail()
 	}
 
 	if len(assertions) == 1 && len(e.actual) > 1 {
-		ok := e.check(assertions[0], e.actual)
+		ok, desc := e.check(assertions[0], e.actual)
 		for i := range e.actual {
 			if !ok[i] {
-				fail(i, assertions[0].at(i))
+				fail(i, assertions[0].at(i), desc.at(i))
 			}
 		}
 	} else {
 		for i := range e.actual {
-			if !e.check(assertion(i), []any{e.actual[i]})[0] {
-				fail(i, assertion(i))
+			r, d := e.check(assertion(i), []any{e.actual[i]})
+			if !r[0] {
+				fail(i, assertion(i), d.at(0))
 			}
 		}
 	}
@@ -197,10 +205,10 @@ func (e Expectation) ToFailWith(err error) {
 	e.t.FailNow()
 }
 
-func (e Expectation) check(assertion Assertion, actual []any) []bool {
+func (e Expectation) check(assertion Assertion, actual []any) ([]bool, descList) {
 	e.t.Helper()
 
-	ok, err := assertion.check(actual)
+	ok, desc, err := assertion.check(actual)
 	if err != nil {
 		var ee errNumberOfValuesToTestDiffers
 		if errors.As(err, &ee) {
@@ -211,15 +219,15 @@ func (e Expectation) check(assertion Assertion, actual []any) []bool {
 		e.t.FailNow()
 	}
 
-	return ok
+	return ok, desc
 }
 
 func (e Expectation) log(args ...any) {
 	e.t.Helper()
 
-	if len(e.t.tags) != 0 {
+	if len(e.tags) != 0 {
 		var b strings.Builder
-		for _, tag := range e.t.tags {
+		for _, tag := range e.tags {
 			b.WriteString(tag.String())
 			b.WriteByte(':')
 			b.WriteByte(' ')
@@ -240,7 +248,7 @@ type SuccessExpectation struct {
 
 // AndResult returns an expectation builder for the associated values except for the last one.
 func (e SuccessExpectation) AndResult() Expectation {
-	return Expectation{e.e.t, e.e.actual[:len(e.e.actual)-1]}
+	return Expectation{e.e.t, e.e.actual[:len(e.e.actual)-1], e.e.tags}
 }
 
 // ---
@@ -270,6 +278,10 @@ func msg(what string, actual, expected describable) string {
 	return fmt.Sprintf("\nExpected %s\n%s\nto %s", what, indent(1, actual.description()), expected.description())
 }
 
+func msgWithDesc(what string, actual describable, desc string) string {
+	return fmt.Sprintf("\nExpected %s\n%s\nto match the following statements:\n%s", what, indent(1, actual.description()), indentNext(1, indent(1, desc)))
+}
+
 // ---
 
 // nolint: unparam
@@ -284,6 +296,15 @@ func indent(n int, text string) string {
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+func indentNext(n int, text string) string {
+	t := indent(n, text)
+	if len(t) > len(indentSnippet) {
+		t = t[len(indentSnippet):]
+	}
+
+	return t
 }
 
 // ---
@@ -338,6 +359,40 @@ func (v values) description() string {
 }
 
 // ---
+type reportTarget interface {
+	Log(args ...any)
+	Fail()
+	FailNow()
+	Helper()
+	Failed() bool
+}
+
+// ---
+
+type collectingReportTarget struct {
+	lines  []string
+	failed bool
+}
+
+func (c *collectingReportTarget) Log(args ...any) {
+	c.lines = append(c.lines, fmt.Sprint(args...))
+}
+
+func (c *collectingReportTarget) Fail() {
+	c.failed = true
+}
+
+func (c *collectingReportTarget) FailNow() {
+	c.failed = true
+}
+
+func (c collectingReportTarget) Helper() {}
+
+func (c collectingReportTarget) Failed() bool {
+	return c.failed
+}
+
+// ---
 
 type describable interface {
 	description() string
@@ -346,3 +401,9 @@ type describable interface {
 // ---
 
 const indentSnippet = "    "
+
+// ---
+
+var (
+	_ reportTarget = &collectingReportTarget{}
+)
