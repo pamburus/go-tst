@@ -573,7 +573,6 @@ func (a haveField) check(actual []any) ([]bool, error) {
 	result := make([]bool, len(actual))
 
 	for i := range actual {
-		var err error
 		v := reflect.ValueOf(actual[i])
 
 		for v.Kind() == reflect.Ptr {
@@ -592,9 +591,6 @@ func (a haveField) check(actual []any) ([]bool, error) {
 			}
 		default:
 			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "struct"}
-		}
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -623,7 +619,6 @@ func (a contain) check(actual []any) ([]bool, error) {
 	result := make([]bool, len(actual))
 
 	for i := range actual {
-		var err error
 		v := reflect.ValueOf(actual[i])
 
 		for v.Kind() == reflect.Ptr {
@@ -645,9 +640,6 @@ func (a contain) check(actual []any) ([]bool, error) {
 			}
 		default:
 			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "array or slice"}
-		}
-		if err != nil {
-			return nil, err
 		}
 	}
 
