@@ -2,6 +2,7 @@
 package tst
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"reflect"
@@ -897,26 +898,14 @@ func compare(i int, actual, expected reflect.Value) (int, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		switch expected.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			switch {
-			case actual.Int() > expected.Int():
-				return succeed(1)
-			case actual.Int() < expected.Int():
-				return succeed(-1)
-			default:
-				return succeed(0)
-			}
+			return succeed(cmp.Compare(actual.Int(), expected.Int()))
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			if actual.Int() < 0 {
+			actual := actual.Int()
+			if actual < 0 {
 				return succeed(-1)
 			}
-			switch {
-			case uint64(actual.Int()) > expected.Uint():
-				return succeed(1)
-			case uint64(actual.Int()) < expected.Uint():
-				return succeed(-1)
-			default:
-				return succeed(0)
-			}
+
+			return succeed(cmp.Compare(uint64(actual), expected.Uint()))
 		default:
 			return fail()
 		}
@@ -924,26 +913,14 @@ func compare(i int, actual, expected reflect.Value) (int, error) {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		switch expected.Kind() {
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			switch {
-			case actual.Uint() > expected.Uint():
-				return succeed(1)
-			case actual.Uint() < expected.Uint():
-				return succeed(-1)
-			default:
-				return succeed(0)
-			}
+			return succeed(cmp.Compare(actual.Uint(), expected.Uint()))
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			if expected.Int() < 0 {
+			expected := expected.Int()
+			if expected < 0 {
 				return succeed(1)
 			}
-			switch {
-			case actual.Uint() > uint64(expected.Int()):
-				return succeed(1)
-			case actual.Uint() < uint64(expected.Int()):
-				return succeed(-1)
-			default:
-				return succeed(0)
-			}
+
+			return succeed(cmp.Compare(actual.Uint(), uint64(expected)))
 		default:
 			return fail()
 		}
@@ -951,14 +928,7 @@ func compare(i int, actual, expected reflect.Value) (int, error) {
 	case reflect.Float32, reflect.Float64:
 		switch expected.Kind() {
 		case reflect.Float32, reflect.Float64:
-			switch {
-			case actual.Float() > expected.Float():
-				return succeed(1)
-			case actual.Float() < expected.Float():
-				return succeed(-1)
-			default:
-				return succeed(0)
-			}
+			return succeed(cmp.Compare(actual.Float(), expected.Float()))
 		default:
 			return fail()
 		}

@@ -11,7 +11,7 @@ import (
 
 // Expectation is an expectation builder that have associated values to be tested against assertions.
 type Expectation struct {
-	t      *Test
+	t      *core
 	actual []any
 }
 
