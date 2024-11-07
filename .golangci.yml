@@ -12,15 +12,10 @@ linters-settings:
   gocyclo:
     min-complexity: 32
   goimports:
-    local-prefixes: git.acronis.com
-  govet:
-    check-shadowing: false
+    local-prefixes: github.com/pamburus
   lll:
     line-length: 140
-  maligned:
-    suggest-new: true
   nolintlint:
-    allow-leading-space: true # don't require machine-readable nolint directives (i.e. with no leading space)
     allow-unused: false # report any unused nolint directives
     require-explanation: true # require an explanation for nolint directives
     require-specific: false # don't require nolint directives to be specific about which linter is being skipped
@@ -54,8 +49,6 @@ linters:
     - unconvert
     - unparam
     - unused
-    - vet
-    - vetshadow
     - whitespace
 
 issues:
@@ -78,8 +71,3 @@ issues:
     - text: ^singleCaseSwitch|^regexpMust
       linters:
         - gocritic
-
-# golangci.com configuration
-# https://github.com/golangci/golangci/wiki/Configuration
-service:
-  golangci-lint-version: 1.48.x # use the fixed version to not introduce new linters unexpectedly
