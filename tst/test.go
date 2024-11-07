@@ -5,7 +5,7 @@ import (
 )
 
 // New constructs a new Test based on the t.
-func New[T Base[T]](t T) Test {
+func New[T HT[T]](t T) Test {
 	return test[T]{core{TB: t}, t.Run}
 }
 
@@ -28,7 +28,7 @@ type Test interface {
 
 // ---
 
-type test[T Base[T]] struct {
+type test[T HT[T]] struct {
 	core
 	run func(name string, f func(T)) bool
 }
