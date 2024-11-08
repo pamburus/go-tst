@@ -26,9 +26,9 @@ linters:
   disable-all: true
   enable:
     - asciicheck
+    - copyloopvar
     - dupl
     - errcheck
-    - exportloopref
     - gocritic
     - gocyclo
     - godot
