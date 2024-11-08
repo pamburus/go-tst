@@ -61,6 +61,7 @@ func (b TestBuilder[T]) WithContext(ctx context.Context) TestBuilder[T] {
 		b.Cleanup(func() {
 			cancel(errTestIsDone)
 		})
+		b.ctx = setupPlugins(b.ctx, b.TB, b.plugins...)
 	}
 
 	return b
@@ -72,6 +73,13 @@ func (b TestBuilder[T]) WithContextFunc(ctxFunc func(T) context.Context) TestBui
 		b.ctxFunc = ctxFunc
 		b = b.WithContext(ctxFunc(b.TB.(T)))
 	}
+
+	return b
+}
+
+func (b TestBuilder[T]) WithPlugins(plugins ...Plugin) TestBuilder[T] {
+	b.plugins = append(b.plugins, plugins...)
+	b.ctx = setupPlugins(b.ctx, b.TB, plugins...)
 
 	return b
 }
@@ -140,7 +148,12 @@ func (t test[T]) fork(tt T) test[T] {
 		cancel(errTestIsDone)
 	})
 
-	return test[T]{core{tt, ctx, t.tags}, t.ctxFunc}
+	ctx = setupPlugins(ctx, t.TB, t.plugins...)
+
+	return test[T]{
+		core{tt, ctx, t.tags, t.plugins},
+		t.ctxFunc,
+	}
 }
 
 func (t test[T]) sealed() {}
@@ -149,6 +162,7 @@ func (t test[T]) sealed() {}
 
 type core struct {
 	testing.TB
-	ctx  context.Context
-	tags []LineTag
+	ctx     context.Context
+	tags    []LineTag
+	plugins []Plugin
 }

@@ -21,8 +21,7 @@ type T interface {
 type Plugin struct{}
 
 func (Plugin) Configure(ctx context.Context, t testing.TB) context.Context {
-	if value := ctx.Value(ctxKeyController); value != nil {
-		controller := value.(*Controller)
+	if controller := getController(ctx); controller != nil {
 		if controller.t.Name() == t.Name() {
 			return ctx
 		}
