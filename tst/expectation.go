@@ -13,6 +13,7 @@ import (
 type Expectation struct {
 	t      *core
 	actual []any
+	tag    LineTag
 }
 
 // To tests that the associated values conform all of the the given assertions.
@@ -26,7 +27,7 @@ func (e Expectation) To(assertions ...Assertion) {
 	if len(e.actual) != len(assertions) {
 		if len(assertions) != 1 || len(e.actual) <= 1 {
 			e.log(msg("number of values to test", value{len(e.actual)}, expDesc("be", len(assertions))))
-			e.t.FailNow()
+			e.fail()
 		}
 		assertion = func(int) Assertion {
 			return assertions[0]
@@ -59,7 +60,7 @@ func (e Expectation) To(assertions ...Assertion) {
 	}
 
 	if e.t.Failed() {
-		e.t.FailNow()
+		e.fail()
 	}
 }
 
@@ -116,7 +117,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 
 	if len(e.actual) == 0 {
 		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
-		e.t.FailNow()
+		e.fail()
 	}
 
 	last := e.actual[len(e.actual)-1]
@@ -127,7 +128,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 	actual, ok := last.(error)
 	if !ok {
 		e.log(msg("last value to test", value{last}, expDescText("be", "an error")))
-		e.t.FailNow()
+		e.fail()
 	}
 
 	if actual == nil {
@@ -135,7 +136,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 	}
 
 	e.log(msg("error", value{actual}, expDesc("be", nil)))
-	e.t.FailNow()
+	e.fail()
 
 	return SuccessExpectation{}
 }
@@ -147,7 +148,7 @@ func (e Expectation) ToSucceed() SuccessExpectation {
 func (e Expectation) ToFail() {
 	if len(e.actual) == 0 {
 		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
-		e.t.FailNow()
+		e.fail()
 	}
 
 	last := e.actual[len(e.actual)-1]
@@ -155,7 +156,7 @@ func (e Expectation) ToFail() {
 		_, ok := last.(error)
 		if !ok {
 			e.log(msg("last value to test", value{last}, expDescText("be", "an error")))
-			e.t.FailNow()
+			e.fail()
 		}
 
 		return
@@ -163,7 +164,7 @@ func (e Expectation) ToFail() {
 
 	e.t.Helper()
 	e.log(msg("error", value{last}, expDescText("be", "non-nil error")))
-	e.t.FailNow()
+	e.fail()
 }
 
 // ToFailWith builds expectation for an error value that is expected be the last in the list of values
@@ -174,7 +175,7 @@ func (e Expectation) ToFailWith(err error) {
 	e.t.Helper()
 	if len(e.actual) == 0 {
 		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
-		e.t.FailNow()
+		e.fail()
 	}
 
 	last := e.actual[len(e.actual)-1]
@@ -185,7 +186,7 @@ func (e Expectation) ToFailWith(err error) {
 	actual, ok := last.(error)
 	if !ok {
 		e.log(msg("last value to test", value{last}, expDescText("be", "an error")))
-		e.t.FailNow()
+		e.fail()
 	}
 
 	if actual != nil && errors.Is(actual, err) {
@@ -194,7 +195,7 @@ func (e Expectation) ToFailWith(err error) {
 
 	e.t.Helper()
 	e.log(msg("error", value{actual}, expDesc("be like", err)))
-	e.t.FailNow()
+	e.fail()
 }
 
 func (e Expectation) check(assertion Assertion, actual []any) []bool {
@@ -208,7 +209,7 @@ func (e Expectation) check(assertion Assertion, actual []any) []bool {
 		} else {
 			e.log(err)
 		}
-		e.t.FailNow()
+		e.fail()
 	}
 
 	return ok
@@ -216,18 +217,12 @@ func (e Expectation) check(assertion Assertion, actual []any) []bool {
 
 func (e Expectation) log(args ...any) {
 	e.t.Helper()
-
-	if len(e.t.tags) != 0 {
-		var b strings.Builder
-		for _, tag := range e.t.tags {
-			b.WriteString(tag.String())
-			b.WriteByte(':')
-			b.WriteByte(' ')
-		}
-		args = append([]any{b.String()}, args...)
-	}
-
 	e.t.Log(args...)
+}
+
+func (e Expectation) fail() {
+	e.t.addLineTags(e.tag)
+	e.t.FailNow()
 }
 
 // ---
@@ -240,7 +235,7 @@ type SuccessExpectation struct {
 
 // AndResult returns an expectation builder for the associated values except for the last one.
 func (e SuccessExpectation) AndResult() Expectation {
-	return Expectation{e.e.t, e.e.actual[:len(e.e.actual)-1]}
+	return Expectation{e.e.t, e.e.actual[:len(e.e.actual)-1], e.e.tag}
 }
 
 // ---

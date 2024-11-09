@@ -6,7 +6,7 @@ import (
 
 // New constructs a new Test based on the t.
 func New[T HT[T]](t T) Test {
-	return test[T]{core{TB: t}, t.Run}
+	return &test[T]{core{TB: t}}
 }
 
 // Test transparently wraps compatible an object compatible with [testing.TB]
@@ -20,40 +20,73 @@ type Test interface {
 	// Expect begins expectation building process against the given values.
 	Expect(values ...any) Expectation
 
-	// WithLineTag returns a new Test that adds information about the line where it was called to the error messages.
-	WithLineTag(tag LineTag) Test
+	// AddLineTags adds information about the lines of interest to be displayed in test failure message.
+	// Do not add lines that are not relevant to the test failure.
+	AddLineTags(tags ...LineTag)
 
 	sealed()
+	get() *core
 }
 
 // ---
 
 type test[T HT[T]] struct {
 	core
-	run func(name string, f func(T)) bool
 }
 
-func (t test[T]) Run(name string, f func(Test)) bool {
-	return t.run(name, func(t T) {
-		f(New(t))
+func (t *test[T]) Run(name string, f func(Test)) bool {
+	t.Helper()
+
+	return t.TB.(T).Run(name, func(tt T) {
+		tt.Helper()
+		f(t.fork(tt))
 	})
 }
 
-func (t test[T]) Expect(values ...any) Expectation {
-	return Expectation{&t.core, values}
+func (t *test[T]) Expect(values ...any) Expectation {
+	return Expectation{&t.core, values, CallerLine(1)}
 }
 
-func (t test[T]) WithLineTag(tag LineTag) Test {
-	t.tags = append(t.tags[:len(t.tags):len(t.tags)], tag)
-
-	return t
+func (t *test[T]) AddLineTags(tags ...LineTag) {
+	t.addLineTags(tags...)
 }
 
-func (t test[T]) sealed() {}
+func (t *test[T]) fork(tt T) *test[T] {
+	tt.Helper()
+
+	fork := &test[T]{core{tt, t.tags}}
+	setup(fork)
+
+	return fork
+}
+
+func (t *test[T]) sealed() {}
+
+func (t *test[T]) get() *core {
+	return &t.core
+}
 
 // ---
 
 type core struct {
 	testing.TB
 	tags []LineTag
+}
+
+func (c *core) addLineTags(tags ...LineTag) {
+	c.tags = append(c.tags, tags...)
+}
+
+// ---
+
+func setup(t Test) {
+	t.Helper()
+	t.Cleanup(func() {
+		if t.Failed() {
+			for _, tag := range t.get().tags {
+				t.Helper()
+				t.Log("See", tag)
+			}
+		}
+	})
 }

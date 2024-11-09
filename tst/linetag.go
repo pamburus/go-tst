@@ -2,13 +2,15 @@ package tst
 
 import (
 	"fmt"
+	"os"
 	"runtime"
+	"slices"
 	"strings"
 )
 
 // ThisLine returns a LineTag that represents the line where it was called.
 func ThisLine() LineTag {
-	return callerLine(0)
+	return callerLine(1)
 }
 
 // CallerLine returns a LineTag that represents the line where the call was made
@@ -32,12 +34,20 @@ func (t LineTag) String() string {
 	fn := runtime.FuncForPC(t.pc)
 	file, line := fn.FileLine(t.pc)
 
-	e := len(file)
-	for i := 0; i != 2 && e > 0; i++ {
-		e = strings.LastIndexByte(file[:e], '/')
+	shorten := func(file string) string {
+		e := len(file)
+		for i := 0; i != 2 && e > 0; i++ {
+			e = strings.LastIndexByte(file[:e], '/')
+		}
+		if e > 0 {
+			file = file[e+1:]
+		}
+
+		return file
 	}
-	if e > 0 {
-		file = file[e+1:]
+
+	if !fullPath {
+		file = shorten(file)
 	}
 
 	return fmt.Sprintf("%s:%d", file, line)
@@ -51,3 +61,7 @@ func callerLine(skip int) LineTag {
 
 	return LineTag{pcs[0]}
 }
+
+var (
+	fullPath = slices.Contains(os.Args, "-test.fullpath=true")
+)
