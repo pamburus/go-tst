@@ -53,62 +53,74 @@ func LessThan(values ...any) Assertion {
 	return BeLessThan(values...)
 }
 
-// BeLessOrEqualThan returns an assertion that passes in case values to be tested using it are less or equal than corresponding specified values.
+// BeLessOrEqualThan returns an assertion that passes in case values to be tested
+// using it are less or equal than corresponding specified values.
 func BeLessOrEqualThan(values ...any) Assertion {
 	return comparison{values, le, "less or equal than"}
 }
 
-// LessOrEqualThan returns an assertion that passes in case values to be tested using it are less or equal than corresponding specified values.
+// LessOrEqualThan returns an assertion that passes in case values to be tested
+// using it are less or equal than corresponding specified values.
 func LessOrEqualThan(values ...any) Assertion {
 	return BeLessOrEqualThan(values...)
 }
 
-// BeGreaterThan returns an assertion that passes in case values to be tested using it are greater than corresponding specified values.
+// BeGreaterThan returns an assertion that passes in case values to be tested
+// using it are greater than corresponding specified values.
 func BeGreaterThan(values ...any) Assertion {
 	return comparison{values, gt, "greater than"}
 }
 
-// GreaterThan returns an assertion that passes in case values to be tested using it are greater than corresponding specified values.
+// GreaterThan returns an assertion that passes in case values to be tested
+// using it are greater than corresponding specified values.
 func GreaterThan(values ...any) Assertion {
 	return BeGreaterThan(values...)
 }
 
-// BeGreaterOrEqualThan returns an assertion that passes in case values to be tested using it are greater or equal than corresponding specified values.
+// BeGreaterOrEqualThan returns an assertion that passes in case values to be tested
+// using it are greater or equal than corresponding specified values.
 func BeGreaterOrEqualThan(values ...any) Assertion {
 	return comparison{values, ge, "greater or equal than"}
 }
 
-// GreaterOrEqualThan returns an assertion that passes in case values to be tested using it are greater or equal than corresponding specified values.
+// GreaterOrEqualThan returns an assertion that passes in case values to be tested
+// using it are greater or equal than corresponding specified values.
 func GreaterOrEqualThan(values ...any) Assertion {
 	return BeGreaterOrEqualThan(values...)
 }
 
-// BeTrue returns an assertion that passes in case all the values to be tested are boolean and equal to true.
+// BeTrue returns an assertion that passes in case all the values to be tested
+// are boolean and equal to true.
 func BeTrue() Assertion {
 	return boolean{true}
 }
 
-// BeFalse returns an assertion that passes in case all the values to be tested are boolean and equal to false.
+// BeFalse returns an assertion that passes in case all the values to be tested
+// are boolean and equal to false.
 func BeFalse() Assertion {
 	return boolean{false}
 }
 
-// BeZero returns an assertion that passes in case all the values to be tested are zero initialized.
+// BeZero returns an assertion that passes in case all the values to be tested
+// are zero initialized.
 func BeZero() Assertion {
 	return zero{}
 }
 
-// BeNil returns an assertion that passes in case all the values to be tested are nil.
+// BeNil returns an assertion that passes in case all the values to be tested
+// are nil.
 func BeNil() Assertion {
 	return nilValue{}
 }
 
-// HaveOccurred returns an assertion that passes in case all the values to be tested are non-nil errors.
+// HaveOccurred returns an assertion that passes in case all the values to be tested
+// are non-nil errors.
 func HaveOccurred() Assertion {
 	return Not(nilError{})
 }
 
-// MatchError returns an assertion that passes in case all the values to be tested are errors that pass test `errors.Is(actual, expected)`.
+// MatchError returns an assertion that passes in case all the values to be tested
+// are errors that pass test `errors.Is(actual, expected)`.
 func MatchError(expected error) Assertion {
 	if expected == nil {
 		return nilError{}
@@ -117,28 +129,34 @@ func MatchError(expected error) Assertion {
 	return matchError{expected}
 }
 
-// HaveLen returns an assertion that passes in case all the values to be tested have length equal to the specified value.
+// HaveLen returns an assertion that passes in case all the values to be tested
+// have length equal to the specified value.
 func HaveLen(n ...any) Assertion {
 	return haveLen{n}
 }
 
-// HaveField returns an assertion that passes in case all the struct values to be tested have a field with the specified name and the specified assertion passes for the field value.
+// HaveField returns an assertion that passes in case all the struct values to be tested
+// have a field with the specified name and the specified assertion passes for the field value.
 func HaveField(name string, assertion Assertion) Assertion {
 	return haveField{name, assertion}
 }
 
-// Field returns an assertion that passes in case all the struct values to be tested have a field with the specified name and the specified assertion passes for the field value.
-// It is an alias for HaveField and is provided for better readability when used in [Struct] or [Contain] assertions.
+// Field returns an assertion that passes in case all the struct values to be tested
+// have a field with the specified name and the specified assertion passes for the field value.
+// It is an alias for HaveField and is provided for better readability
+// when used in [Struct] or [Contain] assertions.
 func Field(name string, assertion Assertion) Assertion {
 	return haveField{name, assertion}
 }
 
-// Contain returns an assertion that passes in case all the array or slice values to be tested contain at least one element matching each of the given assertions.
+// Contain returns an assertion that passes in case all the array or slice values to be tested
+// contain at least one element matching each of the given assertions.
 func Contain(assertion Assertion) Assertion {
 	return contain{assertion}
 }
 
-// Struct returns an assertion that passes in case all the values to be tested are structs each of them containing at least one field matching any of the expected field assertions.
+// Struct returns an assertion that passes in case all the values to be tested
+// are structs each of them containing at least one field matching any of the expected field assertions.
 func Struct(fields ...Assertion) Assertion {
 	return beStruct{fields}
 }
@@ -161,7 +179,7 @@ type equal struct {
 
 func (a equal) check(actual []any) ([]bool, error) {
 	if len(a.expected) != len(actual) && len(a.expected) != 1 {
-		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+		return nil, errNumberOfValuesToTestDiffersError{len(actual), len(a.expected)}
 	}
 
 	expected := func(i int) any {
@@ -205,7 +223,7 @@ type equalUsing struct {
 
 func (a equalUsing) check(actual []any) ([]bool, error) {
 	if len(a.expected) != len(actual) && len(a.expected) != 1 {
-		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+		return nil, errNumberOfValuesToTestDiffersError{len(actual), len(a.expected)}
 	}
 
 	expected := func(i int) any {
@@ -218,22 +236,23 @@ func (a equalUsing) check(actual []any) ([]bool, error) {
 
 	rf := reflect.ValueOf(a.f)
 	if rf.Kind() != reflect.Func {
-		return nil, errUnexpectedAssertionType{0, typeOf(a.f), "function"}
+		return nil, errUnexpectedAssertionTypeError{0, typeOf(a.f), "function"}
 	}
 
 	if rf.Type().NumIn() != 2 || rf.Type().NumOut() != 1 {
-		return nil, errUnexpectedAssertionType{0, typeOf(a.f), "function with two arguments and one return value"}
+		return nil, errUnexpectedAssertionTypeError{0, typeOf(a.f), "function with two arguments and one return value"}
 	}
 
 	if rf.Type().In(0) != reflect.TypeOf(actual[0]) || rf.Type().In(1) != reflect.TypeOf(expected(0)) {
-		return nil, errUnexpectedAssertionType{0, typeOf(a.f), fmt.Sprintf("func(%s, %s) bool", typeOf(actual[0]), typeOf(expected(0)))}
+		return nil, errUnexpectedAssertionTypeError{0, typeOf(a.f), fmt.Sprintf("func(%s, %s) bool", typeOf(actual[0]), typeOf(expected(0)))}
 	}
 
 	if rf.Type().Out(0) != reflect.TypeOf(true) {
-		return nil, errUnexpectedAssertionType{0, typeOf(a.f), "function with return value of type bool"}
+		return nil, errUnexpectedAssertionTypeError{0, typeOf(a.f), "function with return value of type bool"}
 	}
 
 	result := make([]bool, len(actual))
+
 	for i := range actual {
 		out := rf.Call([]reflect.Value{reflect.ValueOf(actual[i]), reflect.ValueOf(expected(i))})
 		result[i] = out[0].Bool()
@@ -268,7 +287,7 @@ type comparison struct {
 
 func (a comparison) check(actual []any) ([]bool, error) {
 	if len(a.expected) != len(actual) && len(a.expected) != 1 {
-		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+		return nil, errNumberOfValuesToTestDiffersError{len(actual), len(a.expected)}
 	}
 
 	expected := func(i int) any {
@@ -280,13 +299,16 @@ func (a comparison) check(actual []any) ([]bool, error) {
 	}
 
 	result := make([]bool, len(actual))
+
 	for i := range actual {
 		actual := reflect.ValueOf(actual[i])
 		expected := reflect.ValueOf(expected(i))
+
 		r, err := compare(i, actual, expected)
 		if err != nil {
 			return nil, err
 		}
+
 		result[i] = a.expectedResult(r)
 	}
 
@@ -321,7 +343,7 @@ func (a boolean) check(actual []any) ([]bool, error) {
 	for i := range actual {
 		value, ok := actual[i].(bool)
 		if !ok {
-			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(a.expected)}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), typeOf(a.expected)}
 		}
 
 		result[i] = value == a.expected
@@ -373,6 +395,7 @@ type nilValue struct{}
 
 func (a nilValue) check(actual []any) ([]bool, error) {
 	result := make([]bool, len(actual))
+
 	for i := range actual {
 		if actual[i] == nil {
 			result[i] = true
@@ -420,7 +443,7 @@ func (a nilError) check(actual []any) ([]bool, error) {
 
 		val, ok := actual[i].(error)
 		if !ok {
-			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(val)}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), typeOf(val)}
 		}
 
 		result[i] = val == nil
@@ -459,7 +482,7 @@ func (a matchError) check(actual []any) ([]bool, error) {
 
 		val, ok := actual[i].(error)
 		if !ok {
-			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(val)}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), typeOf(val)}
 		}
 
 		result[i] = errors.Is(val, a.expected)
@@ -488,7 +511,7 @@ type haveLen struct {
 
 func (a haveLen) check(actual []any) ([]bool, error) {
 	if len(a.expected) != len(actual) && len(a.expected) != 1 {
-		return nil, errNumberOfValuesToTestDiffers{len(actual), len(a.expected)}
+		return nil, errNumberOfValuesToTestDiffersError{len(actual), len(a.expected)}
 	}
 
 	expected := func(i int) any {
@@ -511,7 +534,7 @@ func (a haveLen) check(actual []any) ([]bool, error) {
 		case int:
 			return actual == expected, nil
 		default:
-			return false, errUnexpectedValueType{i, typeOf(actual), typeOf(expected)}
+			return false, errUnexpectedValueTypeError{i, typeOf(actual), typeOf(expected)}
 		}
 	}
 
@@ -528,12 +551,12 @@ func (a haveLen) check(actual []any) ([]bool, error) {
 			if v.Elem().Kind() == reflect.Array {
 				result[i], err = test(i, v.Len(), expected(i))
 			} else {
-				return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(expected(i))}
+				return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), typeOf(expected(i))}
 			}
 		default:
-			return nil, errUnexpectedValueType{i, typeOf(actual[i]), typeOf(expected(i))}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), typeOf(expected(i))}
 		}
-		if err != nil {
+		if err != nil { //nolint:wsl // false positive
 			return nil, err
 		}
 	}
@@ -588,10 +611,11 @@ func (a haveField) check(actual []any) ([]bool, error) {
 				if err != nil {
 					return nil, err
 				}
+
 				result[i] = r[0]
 			}
 		default:
-			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "struct"}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), "struct"}
 		}
 	}
 
@@ -628,11 +652,12 @@ func (a contain) check(actual []any) ([]bool, error) {
 
 		switch v.Kind() {
 		case reflect.Array, reflect.Slice:
-			for j := 0; j < v.Len(); j++ {
+			for j := range v.Len() {
 				ok, err := a.assertion.check([]any{v.Index(j).Interface()})
 				if err != nil {
 					return nil, err
 				}
+
 				if ok[0] {
 					result[i] = true
 
@@ -640,7 +665,7 @@ func (a contain) check(actual []any) ([]bool, error) {
 				}
 			}
 		default:
-			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "array or slice"}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), "array or slice"}
 		}
 	}
 
@@ -676,15 +701,17 @@ func (a beStruct) check(actual []any) ([]bool, error) {
 		}
 
 		if v.Kind() != reflect.Struct {
-			return nil, errUnexpectedValueType{i, typeOf(actual[i]), "struct"}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), "struct"}
 		}
 
 		result[i] = true
+
 		for _, assertion := range a.assertions {
 			ok, err := assertion.check([]any{actual[i]})
 			if err != nil {
 				return nil, err
 			}
+
 			if !ok[0] {
 				result[i] = false
 
@@ -697,8 +724,9 @@ func (a beStruct) check(actual []any) ([]bool, error) {
 }
 
 func (a beStruct) description() string {
-	sb := strings.Builder{}
+	var sb strings.Builder
 	sb.WriteString("be a struct that is expected to\n")
+
 	for i, assertion := range a.assertions {
 		fmt.Fprintf(&sb, "%d. ", i+1)
 		sb.WriteString(indent(1, assertion.description()))
@@ -821,13 +849,16 @@ func combineAssertionDescriptions(operator string, assertions []Assertion) strin
 	}
 
 	var sb strings.Builder
+
 	for i, assertion := range assertions {
 		if i != 0 {
 			sb.WriteRune('\n')
 			sb.WriteString(operator)
 			sb.WriteRune(' ')
 		}
+
 		desc := assertion.description()
+
 		if assertion.complexity() > 1 {
 			sb.WriteString("\n")
 			sb.WriteString(indent(1, desc))
@@ -873,7 +904,7 @@ func anySlice[T any](values []T) []any {
 
 func compare(i int, actual, expected reflect.Value) (int, error) {
 	fail := func() (int, error) {
-		return 0, errUnexpectedValueType{i, typeOf(actual.Interface()), typeOf(expected.Interface())}
+		return 0, errUnexpectedValueTypeError{i, typeOf(actual.Interface()), typeOf(expected.Interface())}
 	}
 	succeed := func(result int) (int, error) {
 		return result, nil

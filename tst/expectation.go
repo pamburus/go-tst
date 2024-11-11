@@ -16,7 +16,7 @@ type Expectation struct {
 	tag    LineTag
 }
 
-// To tests that the associated values conform all of the the given assertions.
+// To tests that the associated values conform all of the given assertions.
 func (e Expectation) To(assertions ...Assertion) {
 	e.t.Helper()
 
@@ -29,6 +29,7 @@ func (e Expectation) To(assertions ...Assertion) {
 			e.log(msg("number of values to test", value{len(e.actual)}, expDesc("be", len(assertions))))
 			e.fail()
 		}
+
 		assertion = func(int) Assertion {
 			return assertions[0]
 		}
@@ -36,10 +37,12 @@ func (e Expectation) To(assertions ...Assertion) {
 
 	fail := func(i int, assertion Assertion) {
 		e.t.Helper()
+
 		what := ""
 		if len(e.actual) != 1 {
 			what = fmt.Sprintf("value #%d", i+1)
 		}
+
 		e.log(msg(what, value{e.actual[i]}, assertion))
 		e.t.Fail()
 	}
@@ -173,6 +176,7 @@ func (e Expectation) ToFail() {
 // All other values are ignored in this expectation.
 func (e Expectation) ToFailWith(err error) {
 	e.t.Helper()
+
 	if len(e.actual) == 0 {
 		e.log(msg("number of values to test", value{len(e.actual)}, expDescText("be", "non-zero")))
 		e.fail()
@@ -203,12 +207,13 @@ func (e Expectation) check(assertion Assertion, actual []any) []bool {
 
 	ok, err := assertion.check(actual)
 	if err != nil {
-		var ee errNumberOfValuesToTestDiffers
+		var ee errNumberOfValuesToTestDiffersError
 		if errors.As(err, &ee) {
 			e.log(msg("number of values to test", value{ee.actual}, expDesc("be", ee.expected)))
 		} else {
 			e.log(err)
 		}
+
 		e.fail()
 	}
 
@@ -267,13 +272,15 @@ func msg(what string, actual, expected describable) string {
 
 // ---
 
-// nolint: unparam
+//nolint:unparam // `indent` - `n` always receives `1`
 func indent(n int, text string) string {
 	var sb strings.Builder
+
 	for _, line := range strings.Split(text, "\n") {
-		for i := 0; i < n; i++ {
+		for range n {
 			sb.WriteString(indentSnippet)
 		}
+
 		sb.WriteString(line)
 		sb.WriteRune('\n')
 	}
@@ -290,6 +297,7 @@ type value struct {
 func (v value) description() string {
 	comment := ""
 	length := -1
+
 	switch vv := v.v.(type) {
 	case nil:
 		return "<nil>"
