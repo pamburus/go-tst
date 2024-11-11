@@ -53,7 +53,6 @@ linters:
     - errchkjson
     - errname
     - errorlint
-    - fatcontext
     - forbidigo
     - ginkgolinter
     - gocheckcompilerdirectives
@@ -139,3 +138,6 @@ issues:
     - text: '^singleCaseSwitch'
       linters:
         - gocritic
+    - text: '^parameter testing.TB should have name tb$'
+      linters:
+        - thelper
