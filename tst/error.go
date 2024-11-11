@@ -1,9 +1,25 @@
 package tst
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
+
+// IsTestIsDone reports whether the error is an error that indicates that the test is done.
+func IsTestIsDone(err error) bool {
+	return errors.Is(err, errTestIsDone)
+}
+
+// IsTestTimeout reports whether the error is an error that indicates that the test execution timed out.
+func IsTestTimeout(err error) bool {
+	return errors.Is(err, errTestTimeout)
+}
+
+// IsTestDeadlineExceeded reports whether the error is an error that indicates that the test execution deadline exceeded.
+func IsTestDeadlineExceeded(err error) bool {
+	return errors.Is(err, errTestDeadlineExceeded)
+}
 
 // ---
 
@@ -39,6 +55,14 @@ type errUnexpectedAssertionTypeError struct {
 func (e errUnexpectedAssertionTypeError) Error() string {
 	return fmt.Sprintf("value in assertion #%d is expected to have type <%s> but it has type <%s>", e.index+1, e.expected, e.actual)
 }
+
+// ---
+
+var (
+	errTestIsDone           = errors.New("test is done")
+	errTestTimeout          = errors.New("test execution timed out")
+	errTestDeadlineExceeded = errors.New("test execution deadline exceeded")
+)
 
 // ---
 

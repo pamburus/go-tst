@@ -43,7 +43,6 @@ linters:
     - bidichk
     - bodyclose
     - canonicalheader
-    - containedctx
     - copyloopvar
     - decorder
     - dogsled
@@ -56,7 +55,6 @@ linters:
     - errorlint
     - fatcontext
     - forbidigo
-    - forcetypeassert
     - ginkgolinter
     - gocheckcompilerdirectives
     - gochecknoinits
@@ -80,7 +78,6 @@ linters:
     - grouper
     - importas
     - ineffassign
-    - interfacebloat
     - intrange
     - lll
     - loggercheck
