@@ -1,6 +1,7 @@
 package tst
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime"
@@ -18,6 +19,15 @@ func ThisLine() LineTag {
 func CallerLine(skip int) LineTag {
 	return callerLine(skip + 1)
 }
+
+// AddLineTags adds the given line tags to the current context.
+func AddLineTags(ctx context.Context, tags ...LineTag) {
+	if t, ok := current(ctx); ok {
+		t.get().addLineTags(tags...)
+	}
+}
+
+// ---
 
 // LineTag represents a line in the source code.
 type LineTag struct {

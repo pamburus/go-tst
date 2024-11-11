@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 )
 
 // ---
@@ -40,7 +41,7 @@ type AnyMockFor[T any] interface {
 
 type mock struct {
 	exectedCalls map[*Controller]map[*callDescriptor]*expectedCall
-	calls        []*call
+	calls        []*call //nolint:unused // later // TODO: use
 	mu           sync.Mutex
 	once         sync.Once
 	typ          reflect.Type
@@ -52,9 +53,10 @@ func (m *mock) get() *mock {
 	return m
 }
 
-//nolint:unparam // `(*mock).handleCall` - `skip` always receives `1`
-func (m *mock) handleCall(ctx context.Context, skip int, method string, args ...any) {
+//nolint:unparam // later
+func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in []any, out []any) {
 	ctx = cmp.Or(ctx, context.Background())
+	_ = skip // TODO: use skip
 
 	// TODO: loop over all expected calls and check if the current call matches any of them
 	select {
@@ -63,19 +65,91 @@ func (m *mock) handleCall(ctx context.Context, skip int, method string, args ...
 	case <-m.init:
 	}
 
-	if _, ok := m.methods[method]; !ok {
-		panic(fmt.Sprintf("mock: type %s has no method %s", m.typ, method))
+	method, ok := m.methods[methodName]
+	if !ok {
+		panic(fmt.Sprintf("mock: type %s has no method %s", m.typ, method.Name))
 	}
+
+	if len(in) != method.Type.NumIn() {
+		panic(fmt.Sprintf("mock: method %s.%s requires %d input parameters, got %d",
+			m.typ,
+			method.Name,
+			method.Type.NumIn(),
+			len(in),
+		))
+	}
+
+	if len(out) != method.Type.NumOut() {
+		panic(fmt.Sprintf("mock: method %s.%s requires %d output parameters, got %d",
+			m.typ,
+			method.Name,
+			method.Type.NumOut(),
+			len(out),
+		))
+	}
+
+	for i, arg := range in {
+		if reflect.TypeOf(arg) != method.Type.In(i) {
+			panic(fmt.Sprintf("mock: method %s.%s requires input parameter %d to be of type %v, got %v",
+				m.typ,
+				method.Name,
+				i,
+				method.Type.In(i),
+				reflect.TypeOf(arg),
+			))
+		}
+	}
+
+	for i, arg := range out {
+		if reflect.TypeOf(arg) != method.Type.Out(i) {
+			panic(fmt.Sprintf("mock: method %s.%s requires output parameter %d to be of type %v, got %v",
+				m.typ,
+				method.Name,
+				i,
+				method.Type.Out(i),
+				reflect.TypeOf(arg),
+			))
+		}
+	}
+
+	mc := getController(ctx)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	var matchedCall *expectedCall
+
 	if len(m.exectedCalls) == 0 {
-		panic("mock: RegisterCall called outside of a test")
+		panic("mock: HandleCall called outside of a test")
 	}
 
-	call := &call{m, method, args, callers(skip + 1)}
-	m.calls = append(m.calls, call)
+	for controller, calls := range m.exectedCalls {
+		if mc != nil && mc != controller {
+			continue
+		}
+
+		for desc, call := range calls {
+			if call.satisfied {
+				continue
+			}
+
+			if desc.method != method {
+				continue
+			}
+
+			if !reflect.DeepEqual(call.assertion.args, in) {
+				continue
+			}
+
+			call.satisfied = true
+			matchedCall = call
+
+			break
+		}
+	}
+
+	// TODO: use matchedCall
+	_ = matchedCall
 }
 
 func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
@@ -111,7 +185,7 @@ func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
 			}
 		}
 
-		call = &expectedCall{assertion, false, false}
+		call = &expectedCall{assertion, false, atomic.Bool{}}
 		calls[assertion.desc] = call
 	}
 

@@ -2,6 +2,8 @@ package tst
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 )
@@ -11,7 +13,27 @@ func New[T HT[T]](tt T) Test {
 	return Build(tt).Done()
 }
 
-// Test transparently wraps compatible an object compatible with [testing.TB]
+// Build constructs a new Test based on the tt with advanced options.
+func Build[T HT[T]](tt T) TestBuilder[T] {
+	return TestBuilder[T]{test[T]{
+		core: core{
+			TB: tt,
+			mu: &sync.Mutex{},
+		},
+	}}.
+		WithContext(context.Background())
+}
+
+// Current returns the Test associated with the given context.
+func Current(ctx context.Context) Test {
+	if t, ok := current(ctx); ok {
+		return t
+	}
+
+	panic("tst: no test is associated with the given context")
+}
+
+// Test transparently wraps an object compatible with [testing.TB]
 // and adds additional methods to make expectations in an assertive way.
 type Test interface {
 	testing.TB
@@ -44,12 +66,6 @@ type Test interface {
 
 	sealed()
 	get() *core
-}
-
-// Build constructs a new Test based on the tt with advanced options.
-func Build[T HT[T]](tt T) TestBuilder[T] {
-	return TestBuilder[T]{test[T]{core: core{TB: tt}}}.
-		WithContext(context.Background())
 }
 
 // ---
@@ -87,7 +103,7 @@ func (b TestBuilder[T]) WithContextFunc(ctxFunc func(T) context.Context) TestBui
 // WithPlugins adds plugins to the test.
 func (b TestBuilder[T]) WithPlugins(plugins ...Plugin) TestBuilder[T] {
 	b.t.plugins = append(b.t.plugins, plugins...)
-	b.t.ctx = setupPlugins(b.t.ctx, b.t.TB, plugins...)
+	b.t.ctx = setupPlugins(b.t.ctx, &b.t, plugins...)
 
 	return b
 }
@@ -187,7 +203,7 @@ func (t *test[T]) fork(tt T) *test[T] {
 	})
 
 	fork := &test[T]{
-		core{tt, ctx, t.tags, t.plugins},
+		core{tt, ctx, slices.Clip(t.tags), t.plugins, t.mu},
 		t.ctxFunc,
 	}
 	setup(fork)
@@ -208,17 +224,24 @@ type core struct {
 	ctx     context.Context
 	tags    []LineTag
 	plugins []Plugin
+	mu      *sync.Mutex
 }
 
-func (c *core) addLineTags(tags ...LineTag) {
-	c.tags = append(c.tags, tags...)
+func (t *core) addLineTags(tags ...LineTag) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.tags = append(slices.Clip(t.tags), tags...)
 }
 
 // ---
 
 func setup[T HT[T]](t *test[T]) {
 	t.Helper()
-	t.ctx = setupPlugins(t.ctx, t, t.plugins...)
+
+	t.ctx = ctxWithTest(t.ctx, t)
+	t.ctx = setupPlugins(t.ctx, t.TB, t.plugins...)
+
 	t.Cleanup(func() {
 		if t.Failed() {
 			for _, tag := range t.get().tags {

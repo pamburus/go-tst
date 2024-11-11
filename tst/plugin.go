@@ -12,11 +12,11 @@ type Plugin interface {
 
 // ---
 
-func setupPlugins(ctx context.Context, tb testing.TB, plugins ...Plugin) context.Context {
-	tb.Helper()
+func setupPlugins(ctx context.Context, t testing.TB, plugins ...Plugin) context.Context {
+	t.Helper()
 
 	for _, plugin := range plugins {
-		ctx = plugin.Configure(ctx, tb)
+		ctx = plugin.Configure(ctx, t)
 	}
 
 	return ctx

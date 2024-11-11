@@ -12,10 +12,10 @@ type StringerMock struct {
 	mock.Mock[fmt.Stringer]
 }
 
-func (m *StringerMock) String() string {
-	mock.HandleThisCall(m)
+func (m *StringerMock) String() (result string) {
+	mock.HandleThisCall(m, mock.Inputs(), mock.Outputs(&result))
 
-	return ""
+	return
 }
 
 func TestStringerMock(tt *testing.T) {
@@ -25,5 +25,7 @@ func TestStringerMock(tt *testing.T) {
 
 	m := &StringerMock{}
 
-	mock.Expect(t, mock.Call(m, "String"))
+	mock.Expect(t,
+		mock.Call(m, "String").Return("hello"),
+	)
 }
