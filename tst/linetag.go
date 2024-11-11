@@ -36,9 +36,11 @@ func (t LineTag) String() string {
 
 	shorten := func(file string) string {
 		e := len(file)
+
 		for i := 0; i != 2 && e > 0; i++ {
 			e = strings.LastIndexByte(file[:e], '/')
 		}
+
 		if e > 0 {
 			file = file[e+1:]
 		}
@@ -62,6 +64,4 @@ func callerLine(skip int) LineTag {
 	return LineTag{pcs[0]}
 }
 
-var (
-	fullPath = slices.Contains(os.Args, "-test.fullpath=true")
-)
+var fullPath = slices.Contains(os.Args, "-test.fullpath=true")

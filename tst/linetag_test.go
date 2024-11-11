@@ -1,24 +1,23 @@
 package tst_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pamburus/go-tst/tst"
 )
 
 func TestThisLine(t *testing.T) {
-	line := tst.ThisLine().String()
-	expected := "tst/linetag_test.go:10"
-	if line != expected {
-		t.Fatalf("Expected ThisLine() to return %s, but got %s", expected, line)
+	line, expected := tst.ThisLine().String(), "/tst/linetag_test.go:11"
+	if line != strings.TrimPrefix(expected, "/") && !strings.HasSuffix(line, expected) {
+		t.Fatalf("Expected ThisLine() = %q to end with %q", line, expected)
 	}
 }
 
 func TestCallerLine(t *testing.T) {
-	line := tst.CallerLine(0).String()
-	expected := "tst/linetag_test.go:18"
-	if line != expected {
-		t.Fatalf("Expected CallerLine(0) to return %s, but got %s", expected, line)
+	line, expected := tst.CallerLine(0).String(), "/tst/linetag_test.go:18"
+	if line != strings.TrimPrefix(expected, "/") && !strings.HasSuffix(line, expected) {
+		t.Fatalf("Expected CallerLine(0) = %q to end with %q", line, expected)
 	}
 }
 
@@ -27,9 +26,8 @@ func TestCallerLineSkip1(t *testing.T) {
 		return tst.CallerLine(skip + 1)
 	}
 
-	line := f(0).String()
-	expected := "tst/linetag_test.go:30"
-	if line != expected {
-		t.Fatalf("Expected CallerLine(1) to return %s, but got %s", expected, line)
+	line, expected := f(0).String(), "/tst/linetag_test.go:29"
+	if line != strings.TrimPrefix(expected, "/") && !strings.HasSuffix(line, expected) {
+		t.Fatalf("Expected CallerLine(1) = %q to end with %q", line, expected)
 	}
 }

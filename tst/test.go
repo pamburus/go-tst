@@ -37,6 +37,7 @@ type test[T HT[T]] struct {
 func (t *test[T]) Run(name string, f func(Test)) bool {
 	t.Helper()
 
+	//nolint:forcetypeassert // it is guaranteed that TB is T
 	return t.TB.(T).Run(name, func(tt T) {
 		tt.Helper()
 		f(t.fork(tt))

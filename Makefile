@@ -7,6 +7,9 @@ SHELL := $(SHELL) -o pipefail
 # Set default goal
 .DEFAULT_GOAL := all
 
+# Some constants
+import-path := github.com/pamburus/go-tst
+
 # Populate complete module list, including build tools
 ifndef all-modules
 all-modules := $(shell go list -m -f '{{.Dir}}')
@@ -24,10 +27,14 @@ endif
 
 # Tools
 go-test := go test
+go-tool-cover := go tool cover
+coverage-filter := go run github.com/pamburus/go-mod/build/tools/cmd/coverage-filter@latest
+test-filter := go run github.com/pamburus/go-mod/build/tools/cmd/test-filter@latest
 ifeq ($(verbose),yes)
+	coverage-filter += -v
 	go-test += -v
 endif
- 
+
 ## Run all tests
 .PHONY: all
 all: ci
@@ -38,30 +45,44 @@ all: ci
 .PHONY: ci
 ci: lint test
 
-.PHONY: ci/%
-ci/%: lint/% test/%
+# Run continuous integration tests for a module
+.PHONY: ci@/%
+ci@/%: lint@/% test@/%
 
 # ---
 
 ## Run linters
 .PHONY: lint
-lint: $(modules:%=lint/%)
+lint: $(modules:%=lint@/%)
 
-.PHONY: lint/%
-lint/%:
+# Run linters for a module
+.PHONY: lint@/%
+lint@/%:
 	golangci-lint run $*/...
 
 # ---
 
 ## Run tests
 .PHONY: test
-test: $(modules:%=test/%)
+test: $(modules:%=test@/%)
 
-.PHONY: test/%
-test/%:
-	$(go-test) ./$*/...
-test/.:
-	$(go-test) ./...
+# Run tests for a module
+.PHONY: test@/%
+test@/%:
+	$(go-test) -fullpath -coverprofile=$*/.cover.out ./$*/... | $(test-filter)
+test@/.:
+	$(go-test) -fullpath -coverprofile=.cover.out ./... | $(test-filter)
+
+# ---
+
+## Show coverage
+.PHONY: coverage
+coverage: $(modules:%=coverage@/%)
+
+# Show coverage for a module
+.PHONY: coverage@/%
+coverage@/%: test@/%
+	$(go-tool-cover) -func=$*/.cover.out | $(coverage-filter) $(import-path)
 
 # ---
 
@@ -69,8 +90,9 @@ test/.:
 .PHONY: tidy
 tidy: $(all-modules:%=tidy/%)
 
-.PHONY: tidy/%
-tidy/%:
+# Tidy up a module
+.PHONY: tidy@/%
+tidy@/%:
 	cd $* && go mod tidy
 
 # ---

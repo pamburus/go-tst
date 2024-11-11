@@ -7,36 +7,36 @@ import (
 
 // ---
 
-type errNumberOfValuesToTestDiffers struct {
+type errNumberOfValuesToTestDiffersError struct {
 	actual   int
 	expected int
 }
 
-func (e errNumberOfValuesToTestDiffers) Error() string {
+func (e errNumberOfValuesToTestDiffersError) Error() string {
 	return fmt.Sprintf("number of values to test is %d but expected to be %d", e.actual, e.expected)
 }
 
 // ---
 
-type errUnexpectedValueType struct {
+type errUnexpectedValueTypeError struct {
 	index    int
 	actual   string
 	expected string
 }
 
-func (e errUnexpectedValueType) Error() string {
+func (e errUnexpectedValueTypeError) Error() string {
 	return fmt.Sprintf("value to test #%d is expected to have type <%s> but it has type <%s>", e.index+1, e.expected, e.actual)
 }
 
 // ---
 
-type errUnexpectedAssertionType struct {
+type errUnexpectedAssertionTypeError struct {
 	index    int
 	actual   string
 	expected string
 }
 
-func (e errUnexpectedAssertionType) Error() string {
+func (e errUnexpectedAssertionTypeError) Error() string {
 	return fmt.Sprintf("value in assertion #%d is expected to have type <%s> but it has type <%s>", e.index+1, e.expected, e.actual)
 }
 
