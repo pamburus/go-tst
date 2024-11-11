@@ -100,4 +100,5 @@ tidy@/%:
 ## Clean up
 .PHONY: clean
 clean:
+	find . -type f -name .cover.out -delete
 	find . -type f -name go.work.sum -delete
