@@ -113,6 +113,11 @@ func BeNil() Assertion {
 	return nilValue{}
 }
 
+// BeAnything returns an assertion that passes in case all the values to be tested are anything.
+func BeAnything() Assertion {
+	return beAnything{}
+}
+
 // HaveOccurred returns an assertion that passes in case all the values to be tested
 // are non-nil errors.
 func HaveOccurred() Assertion {
@@ -155,6 +160,10 @@ func Contain(assertion Assertion) Assertion {
 	return contain{assertion}
 }
 
+func String[T ~string](predicates ...Predicate[T]) Assertion {
+	return str{predicates}
+}
+
 // Struct returns an assertion that passes in case all the values to be tested
 // are structs each of them containing at least one field matching any of the expected field assertions.
 func Struct(fields ...Assertion) Assertion {
@@ -169,6 +178,28 @@ type Assertion interface {
 	description() string
 	complexity() int
 	at(int) Assertion
+}
+
+// ---
+
+type Predicate[T any] func(T) bool
+
+func HavingPrefix[S ~string](s S) Predicate[S] {
+	return func(v S) bool {
+		return strings.HasPrefix(string(v), string(s))
+	}
+}
+
+func HavingSuffix[S ~string](s S) Predicate[S] {
+	return func(v S) bool {
+		return strings.HasSuffix(string(v), string(s))
+	}
+}
+
+func Containing[S ~string](s S) Predicate[S] {
+	return func(v S) bool {
+		return strings.Contains(string(v), string(s))
+	}
 }
 
 // ---
@@ -686,6 +717,48 @@ func (a contain) at(int) Assertion {
 
 // ---
 
+type str struct {
+	predicates []Predicate[string]
+}
+
+func (a str) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
+	if len(a.predicates) != len(actual) {
+		return nil, errNumberOfValuesToTestDiffersError{len(actual), len(a.predicates)}
+	}
+
+	for i := range actual {
+		v := reflect.ValueOf(actual[i])
+
+		for v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+
+		switch v.Kind() {
+		case reflect.String:
+			for j := range v.Len() {
+				ok, err := a.substrings[i].check([]any{v.Index(j).Interface()})
+				if err != nil {
+					return nil, err
+				}
+
+				if ok[0] {
+					result[i] = true
+
+					break
+				}
+			}
+		default:
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), "string"}
+		}
+	}
+
+	return result, nil
+}
+
+// ---
+
 type beStruct struct {
 	assertions []Assertion
 }
@@ -839,6 +912,31 @@ func (a or) at(int) Assertion {
 	}
 
 	return or{assertions}
+}
+
+// ---
+
+type beAnything struct{}
+
+func (a beAnything) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+	for i := range result {
+		result[i] = true
+	}
+
+	return result, nil
+}
+
+func (a beAnything) description() string {
+	return "be anything"
+}
+
+func (a beAnything) complexity() int {
+	return 1
+}
+
+func (a beAnything) at(int) Assertion {
+	return a
 }
 
 // ---

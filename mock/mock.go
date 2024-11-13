@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -24,6 +25,14 @@ func (m *Mock[T]) getMock() *Mock[T] {
 	return m
 }
 
+func (m *Mock[T]) init() {
+	m.once.Do(func() {
+		te := typeEntryFor[T]()
+		m.typ = te.typ
+		m.methods = te.methods
+	})
+}
+
 // ---
 
 // AnyMock is a mock object interface.
@@ -35,6 +44,7 @@ type AnyMock interface {
 type AnyMockFor[T any] interface {
 	AnyMock
 	getMock() *Mock[T]
+	init()
 }
 
 // ---
@@ -46,7 +56,6 @@ type mock struct {
 	once         sync.Once
 	typ          reflect.Type
 	methods      map[string]reflect.Method
-	init         chan struct{}
 }
 
 func (m *mock) get() *mock {
@@ -62,12 +71,12 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 	select {
 	case <-ctx.Done():
 		panic(context.Cause(ctx))
-	case <-m.init:
+	default:
 	}
 
 	method, ok := m.methods[methodName]
 	if !ok {
-		panic(fmt.Sprintf("mock: type %s has no method %s", m.typ, method.Name))
+		panic(fmt.Sprintf("mock: type %v has no method %s", m.typ, methodName))
 	}
 
 	if len(in) != method.Type.NumIn() {
@@ -90,7 +99,7 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 
 	for i, arg := range in {
 		if reflect.TypeOf(arg) != method.Type.In(i) {
-			panic(fmt.Sprintf("mock: method %s.%s requires input parameter %d to be of type %v, got %v",
+			panic(fmt.Sprintf("mock: method %s.%s requires input parameter #%d to be of type %v, got %v",
 				m.typ,
 				method.Name,
 				i,
@@ -101,8 +110,8 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 	}
 
 	for i, arg := range out {
-		if reflect.TypeOf(arg) != method.Type.Out(i) {
-			panic(fmt.Sprintf("mock: method %s.%s requires output parameter %d to be of type %v, got %v",
+		if reflect.TypeOf(arg) != reflect.PointerTo(method.Type.Out(i)) {
+			panic(fmt.Sprintf("mock: method %s.%s requires output parameter #%d to be of type %v, got %v",
 				m.typ,
 				method.Name,
 				i,
@@ -117,11 +126,14 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var matchedCall *expectedCall
+	var (
+		matchedCall  *expectedCall
+		relatedCalls []*expectedCall
+	)
 
-	if len(m.exectedCalls) == 0 {
-		panic("mock: HandleCall called outside of a test")
-	}
+	// if len(m.exectedCalls) == 0 {
+	// 	panic("mock: HandleCall called outside of a test")
+	// }
 
 	for controller, calls := range m.exectedCalls {
 		if mc != nil && mc != controller {
@@ -129,27 +141,45 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 		}
 
 		for desc, call := range calls {
-			if call.satisfied {
+			if desc.method.Name != method.Name {
 				continue
 			}
 
-			if desc.method != method {
-				continue
-			}
+			relatedCalls = append(relatedCalls, call)
 
 			if !reflect.DeepEqual(call.assertion.args, in) {
 				continue
 			}
 
-			call.satisfied = true
+			if !call.registerCall() {
+				continue
+			}
+
 			matchedCall = call
 
 			break
 		}
 	}
 
-	// TODO: use matchedCall
-	_ = matchedCall
+	if matchedCall == nil {
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "mock: unexpected call to %s.%s", m.typ, method.Name)
+		for _, call := range relatedCalls {
+			_, _ = fmt.Fprintf(&sb, "\n * see %s", call)
+		}
+
+		panic(sb.String())
+	}
+
+	inValues := make([]reflect.Value, len(in))
+	for i, arg := range in {
+		inValues[i] = reflect.ValueOf(arg)
+	}
+
+	outValues := matchedCall.assertion.do.Call(inValues)
+	for i, arg := range out {
+		reflect.ValueOf(arg).Elem().Set(outValues[i])
+	}
 }
 
 func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
@@ -185,7 +215,7 @@ func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
 			}
 		}
 
-		call = &expectedCall{assertion, false, atomic.Bool{}}
+		call = &expectedCall{assertion, atomic.Int64{}, atomic.Bool{}}
 		calls[assertion.desc] = call
 	}
 
