@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/pamburus/go-tst/mock"
-	"github.com/pamburus/go-tst/tst"
+	. "github.com/pamburus/go-tst/tst"
 )
 
 type StringerMock struct {
@@ -14,18 +14,20 @@ type StringerMock struct {
 
 func (m *StringerMock) String() (result string) {
 	mock.HandleThisCall(m, mock.Inputs(), mock.Outputs(&result))
-
 	return
 }
 
 func TestStringerMock(tt *testing.T) {
-	t := tst.Build(tt).
+	t := Build(tt).
 		WithPlugins(mock.NewPlugin()).
 		Done()
 
 	m := &StringerMock{}
 
 	mock.Expect(t,
-		mock.Call(m, "String").Return("hello"),
+		mock.Call(m, "String").Times(1).Return("hello"),
 	)
+
+	t.Expect(m.String()).To(Equal("hello"))
+	t.Expect(m.String).To(Panic("aa"))
 }

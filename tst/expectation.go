@@ -312,6 +312,19 @@ func (v value) description() string {
 		switch rv.Kind() {
 		case reflect.Array, reflect.Slice, reflect.Map, reflect.String, reflect.Chan:
 			length = rv.Len()
+		case reflect.Func:
+			if rv.Type().NumIn() == 0 {
+				var out []reflect.Value
+				pv := catch(func() {
+					out = rv.Call(nil)
+				})
+				if pv != nil {
+					comment = strings.TrimLeft(indent(1, fmt.Sprintf(" | -> %s", panicDescription(pv))), "")
+				} else {
+					comment = fmt.Sprintf(" | -> %s", strings.TrimLeft(indent(1, formatTuple(out)), " "))
+				}
+
+			}
 		}
 	}
 
@@ -342,8 +355,39 @@ func (v values) description() string {
 
 // ---
 
+func panicDescription(pv any) string {
+	s := fmt.Sprintf("%s", pv)
+	if strings.Contains(s, "\n") {
+		s = fmt.Sprintf("\n%s\n", indent(1, strings.Trim(s, "\n")))
+	}
+
+	return fmt.Sprintf("panic!(%s)", s)
+}
+
+// ---
+
 type describable interface {
 	description() string
+}
+
+// ---
+
+func formatTuple(values []reflect.Value) string {
+	var sb strings.Builder
+
+	sb.WriteByte('(')
+
+	for i, v := range values {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(value{v.Interface()}.description())
+	}
+
+	sb.WriteByte(')')
+
+	return sb.String()
 }
 
 // ---

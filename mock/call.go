@@ -39,18 +39,11 @@ func Call[T any](mock AnyMockFor[T], method string, args ...any) CallAssertion {
 		args[i] = tst.Equal(args[i])
 	}
 
-	m := mock.get()
-	m.once.Do(func() {
-		m.typ = te.typ
-		m.methods = te.methods
-		if m.init != nil {
-			close(m.init)
-		}
-	})
+	mock.init()
 
 	return CallAssertion{
 		desc: &callDescriptor{
-			mock:    m,
+			mock:    mock.get(),
 			method:  methodType,
 			lineTag: tst.CallerLine(1),
 		},
@@ -73,11 +66,13 @@ func InOrder(calls ...CallAssertion) Assertion {
 
 // HandleThisCall handles the current method call of a mock object.
 func HandleThisCall[T any](mock AnyMockFor[T], in InputArgs, out OutputArgs) {
+	mock.init()
 	mock.get().handleCall(context.Background(), 1, callerMethodName(1), in.args, out.args)
 }
 
 // HandleCall handles the method call of a mock object.
 func HandleCall[T any](mock AnyMockFor[T], method string, in InputArgs, out OutputArgs) {
+	mock.init()
 	mock.get().handleCall(context.Background(), 1, method, in.args, out.args)
 }
 
@@ -272,8 +267,36 @@ func (a CallAssertion) clone() CallAssertion {
 
 type expectedCall struct {
 	assertion CallAssertion
-	satisfied bool
+	count     atomic.Int64
 	completed atomic.Bool
+}
+
+func (c *expectedCall) registerCall() bool {
+	var count int64
+
+	for {
+		count = c.count.Load()
+		if c.assertion.maxCount > 0 && count >= int64(c.assertion.maxCount) {
+			return false
+		}
+
+		count++
+		if c.count.CompareAndSwap(count-1, count) {
+			break
+		}
+	}
+
+	return count >= int64(c.assertion.minCount)
+}
+
+func (c *expectedCall) String() string {
+	var sb strings.Builder
+	sb.WriteString(c.assertion.desc.String())
+	if c.assertion.minCount > 0 || c.assertion.maxCount > 0 {
+		fmt.Fprintf(&sb, " called %d of %d..%d times", c.count.Load(), c.assertion.minCount, c.assertion.maxCount)
+	}
+
+	return sb.String()
 }
 
 // ---
@@ -320,6 +343,7 @@ func typeEntryFor[T any]() *typeEntry {
 
 	entry := entryItem.(*typeEntry)
 	entry.once.Do(func() {
+		entry.typ = typ
 		entry.methods = make(map[string]reflect.Method)
 
 		for i := range typ.NumMethod() {
