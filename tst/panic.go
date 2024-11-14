@@ -6,7 +6,11 @@ import (
 	"strings"
 )
 
-func Panic(values ...any) Assertion {
+func Panic() Assertion {
+	return panicAssertion{}
+}
+
+func PanicWith(values ...any) Assertion {
 	return panicAssertion{values}
 }
 
@@ -63,7 +67,12 @@ func (a panicAssertion) description() string {
 	b.WriteString("panic with\n")
 
 	for i, target := range a.targets {
-		fmt.Fprintf(&b, "[#%d] %s\n", i+1, value{target}.description())
+		val := indented(1, value{target})
+		if len(a.targets) > 1 {
+			fmt.Fprintf(&b, "[#%d] %s\n", i+1, val)
+		} else {
+			fmt.Fprintf(&b, "%s\n", val)
+		}
 	}
 
 	return strings.TrimRight(b.String(), "\n")
@@ -75,6 +84,10 @@ func (a panicAssertion) complexity() int {
 
 func (a panicAssertion) at(int) Assertion {
 	return a
+}
+
+func (a panicAssertion) String() string {
+	return a.description()
 }
 
 // ---

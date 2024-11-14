@@ -267,7 +267,7 @@ func (e expTextDesc) description() string {
 // ---
 
 func msg(what string, actual, expected describable) string {
-	return fmt.Sprintf("\nExpected %s\n%s\nto %s", what, indent(1, actual.description()), expected.description())
+	return fmt.Sprintf("\nExpected %s\n%s\nto %s", what, indented(1, actual), expected)
 }
 
 // ---
@@ -288,6 +288,31 @@ func indent(n int, text string) string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+func indented(n int, value describable) indentedDescribable {
+	if value, ok := value.(indentedDescribable); ok {
+		return indentedDescribable{n + value.n, value.value}
+	}
+
+	return indentedDescribable{n, value}
+}
+
+// ---
+
+var _ describable = indentedDescribable{}
+
+type indentedDescribable struct {
+	n     int
+	value describable
+}
+
+func (i indentedDescribable) description() string {
+	return indent(i.n, i.value.description())
+}
+
+func (i indentedDescribable) String() string {
+	return i.description()
+}
+
 // ---
 
 type value struct {
@@ -298,19 +323,29 @@ func (v value) description() string {
 	comment := ""
 	length := -1
 
+	val := v.v
+
 	switch vv := v.v.(type) {
 	case nil:
 		return "<nil>"
 	case []byte:
 		comment = fmt.Sprintf(" | %q", vv)
 		length = len(vv)
+	case Assertion:
+		return "a value that is expected to " + vv.description()
 	case fmt.Stringer:
 		s := vv.String()
-		comment = fmt.Sprintf(" | [%d] %s", len(s), s)
+		comment = fmt.Sprintf(" | [%d] %q", len(s), s)
 	default:
 		rv := reflect.ValueOf(vv)
 		switch rv.Kind() {
-		case reflect.Array, reflect.Slice, reflect.Map, reflect.String, reflect.Chan:
+		case reflect.String:
+			s := rv.String()
+			if strings.Contains(s, "\n") {
+				val = multilineString(s)
+			}
+			fallthrough
+		case reflect.Array, reflect.Slice, reflect.Map, reflect.Chan:
 			length = rv.Len()
 		case reflect.Func:
 			if rv.Type().NumIn() == 0 {
@@ -319,11 +354,10 @@ func (v value) description() string {
 					out = rv.Call(nil)
 				})
 				if pv != nil {
-					comment = strings.TrimLeft(indent(1, fmt.Sprintf(" | -> %s", panicDescription(pv))), "")
+					comment = fmt.Sprintf(" that panics with %s", panicDescription(pv))
 				} else {
 					comment = fmt.Sprintf(" | -> %s", strings.TrimLeft(indent(1, formatTuple(out)), " "))
 				}
-
 			}
 		}
 	}
@@ -333,7 +367,11 @@ func (v value) description() string {
 		ls = fmt.Sprintf("[%d] ", length)
 	}
 
-	return fmt.Sprintf("<%T>: %s%#v%s", v.v, ls, v.v, comment)
+	return fmt.Sprintf("<%T>: %s%#v%s", v.v, ls, val, comment)
+}
+
+func (v value) String() string {
+	return v.description()
 }
 
 // ---
@@ -347,21 +385,44 @@ func (v values) description() string {
 
 	var sb strings.Builder
 	for i := range v {
-		fmt.Fprintf(&sb, "[#%d] %s\n", i+1, value{v[i]}.description())
+		fmt.Fprintf(&sb, "[#%d] %s\n", i+1, value{v[i]})
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+func (v values) String() string {
+	return v.description()
+}
+
+// ---
+
+type multilineString string
+
+func (m multilineString) description() string {
+	var b strings.Builder
+	b.WriteString("|-\n")
+	for _, line := range strings.Split(string(m), "\n") {
+		b.WriteString(indentSnippet)
+		b.WriteString(line)
+		b.WriteRune('\n')
+	}
+
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func (m multilineString) String() string {
+	return m.description()
+}
+
+func (m multilineString) Format(s fmt.State, verb rune) {
+	fmt.Fprint(s, m.description())
+}
+
 // ---
 
 func panicDescription(pv any) string {
-	s := fmt.Sprintf("%s", pv)
-	if strings.Contains(s, "\n") {
-		s = fmt.Sprintf("\n%s\n", indent(1, strings.Trim(s, "\n")))
-	}
-
-	return fmt.Sprintf("panic!(%s)", s)
+	return fmt.Sprintf("panic: %s", value{pv})
 }
 
 // ---
