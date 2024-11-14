@@ -29,5 +29,7 @@ func TestStringerMock(tt *testing.T) {
 	)
 
 	t.Expect(m.String()).To(Equal("hello"))
-	t.Expect(m.String).To(Panic("aa"))
+	t.Expect(m.String).To(PanicWith(
+		String(ContainingSubstring("mock: unexpected call to fmt.Stringer.String")),
+	))
 }
