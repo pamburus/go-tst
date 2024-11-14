@@ -161,7 +161,7 @@ func Contain(assertion Assertion) Assertion {
 }
 
 func String[T ~string](predicates ...Predicate[T]) Assertion {
-	return str{predicates}
+	return str[T]{predicates}
 }
 
 // Struct returns an assertion that passes in case all the values to be tested
@@ -182,24 +182,38 @@ type Assertion interface {
 
 // ---
 
-type Predicate[T any] func(T) bool
+type Predicate[T any] interface {
+	Apply(T) bool
+
+	description() string
+	sealed()
+}
 
 func HavingPrefix[S ~string](s S) Predicate[S] {
-	return func(v S) bool {
-		return strings.HasPrefix(string(v), string(s))
-	}
+	return newPredicate(
+		fmt.Sprintf("be a %[1]T having prefix %[1]q", s),
+		func(v S) bool {
+			return strings.HasPrefix(string(v), string(s))
+		},
+	)
 }
 
 func HavingSuffix[S ~string](s S) Predicate[S] {
-	return func(v S) bool {
-		return strings.HasSuffix(string(v), string(s))
-	}
+	return newPredicate(
+		fmt.Sprintf("be a %[1]T having suffix %[1]q", s),
+		func(v S) bool {
+			return strings.HasSuffix(string(v), string(s))
+		},
+	)
 }
 
-func Containing[S ~string](s S) Predicate[S] {
-	return func(v S) bool {
-		return strings.Contains(string(v), string(s))
-	}
+func ContainingSubstring[S ~string](s S) Predicate[S] {
+	return newPredicate(
+		fmt.Sprintf("be a %[1]T containing sub-string %[1]q", s),
+		func(v S) bool {
+			return strings.Contains(string(v), string(s))
+		},
+	)
 }
 
 // ---
@@ -717,11 +731,13 @@ func (a contain) at(int) Assertion {
 
 // ---
 
-type str struct {
-	predicates []Predicate[string]
+var _ Assertion = str[string]{}
+
+type str[T ~string] struct {
+	predicates []Predicate[T]
 }
 
-func (a str) check(actual []any) ([]bool, error) {
+func (a str[T]) check(actual []any) ([]bool, error) {
 	result := make([]bool, len(actual))
 
 	if len(a.predicates) != len(actual) {
@@ -737,17 +753,8 @@ func (a str) check(actual []any) ([]bool, error) {
 
 		switch v.Kind() {
 		case reflect.String:
-			for j := range v.Len() {
-				ok, err := a.substrings[i].check([]any{v.Index(j).Interface()})
-				if err != nil {
-					return nil, err
-				}
-
-				if ok[0] {
-					result[i] = true
-
-					break
-				}
+			if a.predicates[i].Apply(T(v.String())) {
+				result[i] = true
 			}
 		default:
 			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), "string"}
@@ -755,6 +762,28 @@ func (a str) check(actual []any) ([]bool, error) {
 	}
 
 	return result, nil
+}
+
+func (a str[T]) description() string {
+	var sb strings.Builder
+
+	for i, predicate := range a.predicates {
+		if len(a.predicates) > 1 {
+			fmt.Fprintf(&sb, "%s#%d: %s\n", indentSnippet, i+1, predicate)
+		} else {
+			sb.WriteString(predicate.description())
+		}
+	}
+
+	return sb.String()
+}
+
+func (a str[T]) complexity() int {
+	return 2
+}
+
+func (a str[T]) at(i int) Assertion {
+	return str[T]{[]Predicate[T]{a.predicates[i]}}
 }
 
 // ---
@@ -1089,3 +1118,26 @@ func gt(r int) bool {
 func ge(r int) bool {
 	return r >= 0
 }
+
+// ---
+
+func newPredicate[T any](description string, f func(T) bool) Predicate[T] {
+	return predicate[T]{description, f}
+}
+
+// ---
+
+type predicate[T any] struct {
+	desc string
+	f    func(T) bool
+}
+
+func (p predicate[T]) Apply(v T) bool {
+	return p.f(v)
+}
+
+func (p predicate[T]) description() string {
+	return p.desc
+}
+
+func (predicate[T]) sealed() {}
