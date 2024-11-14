@@ -165,7 +165,7 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 		var sb strings.Builder
 		fmt.Fprintf(&sb, "mock: unexpected call to %s.%s", m.typ, method.Name)
 		for _, call := range relatedCalls {
-			_, _ = fmt.Fprintf(&sb, "\n * see %s", call)
+			_, _ = fmt.Fprintf(&sb, "\n(*) See %s", call)
 		}
 
 		panic(sb.String())

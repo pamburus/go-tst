@@ -308,7 +308,7 @@ type callDescriptor struct {
 }
 
 func (d *callDescriptor) String() string {
-	return fmt.Sprintf("%v.%v defined at %s", d.mock.typ.Name(), d.method.Name, d.lineTag)
+	return fmt.Sprintf("%v.%v defined at %s", d.mock.typ, d.method.Name, d.lineTag)
 }
 
 // ---
