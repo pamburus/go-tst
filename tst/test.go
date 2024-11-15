@@ -110,6 +110,7 @@ func (b TestBuilder[T]) WithPlugins(plugins ...Plugin) TestBuilder[T] {
 
 // Done returns the constructed Test.
 func (b TestBuilder[T]) Done() Test {
+	b.t.Helper()
 	setup(&b.t)
 
 	return &b.t

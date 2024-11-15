@@ -47,12 +47,18 @@ func (a panicAssertion) check(actual []any) ([]bool, error) {
 			assertion = Equal(pv)
 		}
 
-		res, err := assertion.check([]any{catchReflect(v)})
-		if err != nil {
-			return nil, err
-		}
+		pv := catchReflect(v)
+		if pv == nil {
+			tpv, _ := at(a.targets, i)
+			result[i] = tpv == nil
+		} else {
+			res, err := assertion.check([]any{pv})
+			if err != nil {
+				return nil, err
+			}
 
-		result[i] = res[0]
+			result[i] = res[0]
+		}
 	}
 
 	return result, nil
