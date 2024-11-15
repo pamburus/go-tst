@@ -16,15 +16,29 @@ func TestSortMock(tt *testing.T) {
 
 	m := &sortMock{}
 
-	// Example data: []int{3, 1, 4}
-	mock.Expect(t, mock.InOrder(
-		mock.Call(m, "Len").Return(3),
-		mock.Call(m, "Less", 1, 0).Return(true),
-		mock.Call(m, "Swap", 1, 0),
-		mock.Call(m, "Less", 2, 1).Return(false),
-	))
+	t.Run("T1", func(t Test) {
+		// Example data: []int{3, 1, 4}
+		mock.On(t).During(func() {
+			sort.Sort(m)
+		}).Expect(mock.InOrder(
+			mock.Call(m, "Len").Return(3),
+			mock.Call(m, "Less", 1, 0).Return(true),
+			mock.Call(m, "Swap", 1, 0),
+			mock.Call(m, "Less", 2, 1).Return(false),
+		))
+	})
 
-	sort.Sort(m)
+	t.Run("T2", func(t Test) {
+		// Example data: []int{3, 1, 4}
+		mock.On(t).During(func() {
+			sort.Sort(m)
+		}).Expect(mock.InOrder(
+			mock.Call(m, "Len").Return(3),
+			mock.Call(m, "Less", 1, 0).Return(true),
+			mock.Call(m, "Swap", 1, 0),
+			mock.Call(m, "Less", 2, 1).Return(false),
+		))
+	})
 }
 
 func TestStringerMock(tt *testing.T) {
@@ -34,13 +48,20 @@ func TestStringerMock(tt *testing.T) {
 
 	m := &stringerMock{}
 
-	mock.Expect(t,
+	mock.On(t).During(func() {
+		t.Expect(m.String()).To(Equal("hello"))
+	}).Expect(
 		mock.Call(m, "String").Return("hello"),
 	)
 
-	t.Expect(m.String()).To(Equal("hello"))
-	t.Expect(m.String).To(PanicWith(
-		String(ContainingSubstring("mock: unexpected call to fmt.Stringer.String")),
+	mock.On(t).During(func() {
+		t.Expect(m.String()).To(Equal("bye"))
+	}).Expect(
+		mock.Call(m, "String").Return("bye"),
+	)
+
+	t.Expect(m.String).To(PanicAndPanicValueTo(
+		MatchErrorBy(mock.IsUnexpectedCall, "IsUnexpectedCall"),
 	))
 }
 

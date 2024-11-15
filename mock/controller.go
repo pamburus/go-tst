@@ -39,17 +39,13 @@ func (c *Controller) Checkpoint() {
 		mock.mu.Lock()
 		defer mock.mu.Unlock()
 
-		for controller, calls := range mock.exectedCalls {
-			if controller != c {
-				continue
-			}
-
-			for _, call := range calls {
-				if !call.assertion.countConstraint().Contains(call.count.Load()) {
-					c.tb.Errorf("mock: missing call %s", call)
-				}
+		for _, call := range mock.exectedCalls[c] {
+			if !call.assertion.countConstraint().Contains(call.count.Load()) {
+				c.tb.Errorf("mock: missing call %s", call)
 			}
 		}
+
+		delete(mock.exectedCalls, c)
 	}
 }
 

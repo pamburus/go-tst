@@ -338,7 +338,7 @@ func (c *expectedCall) String() string {
 		fmt.Fprintf(&sb, ", called %d of %s times", c.count.Load(), constraint)
 	}
 	for dep := range c.assertion.after {
-		fmt.Fprintf(&sb, "\n    Expected to be called after %s", dep)
+		fmt.Fprintf(&sb, ",\n    expected to be called after %s", dep)
 	}
 
 	return sb.String()

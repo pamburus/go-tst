@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -173,24 +172,7 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 	}
 
 	if matchedCall == nil {
-		var sb strings.Builder
-
-		fmt.Fprintf(&sb, "mock: unexpected call to %s.%s", m.typ, method.Name)
-
-		sb.WriteByte('(')
-		for i, arg := range in {
-			if i > 0 {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(fmt.Sprintf("%#v", arg))
-		}
-		sb.WriteByte(')')
-
-		for _, call := range relatedCalls {
-			_, _ = fmt.Fprintf(&sb, "\n(*) See %s", call)
-		}
-
-		panic(sb.String())
+		panic(errUnexpectedCallError{m.typ, method, in, relatedCalls})
 	}
 
 	inValues := make([]reflect.Value, len(in))
