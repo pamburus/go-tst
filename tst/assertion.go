@@ -180,6 +180,21 @@ type Assertion interface {
 	at(int) Assertion
 }
 
+func Match(assertion Assertion, values ...any) bool {
+	ok, err := assertion.check(values)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, o := range ok {
+		if !o {
+			return false
+		}
+	}
+
+	return true
+}
+
 // ---
 
 type Predicate[T any] interface {
