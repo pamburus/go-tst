@@ -140,6 +140,10 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 			continue
 		}
 
+		if controller.done.Load() {
+			continue
+		}
+
 		for desc, call := range calls {
 			if desc.method.Name != method.Name {
 				continue
@@ -218,6 +222,11 @@ func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
 		call = &expectedCall{assertion, atomic.Int64{}, atomic.Bool{}}
 		calls[assertion.desc] = call
 	}
+
+	controller.mu.Lock()
+	defer controller.mu.Unlock()
+
+	controller.mocks[m] = struct{}{}
 
 	return call
 }

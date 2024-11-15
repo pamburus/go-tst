@@ -11,6 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/pamburus/go-tst/internal/constraints"
+	"github.com/pamburus/go-tst/internal/intrange"
+	"github.com/pamburus/go-tst/internal/optional"
 	"github.com/pamburus/go-tst/tst"
 )
 
@@ -114,12 +117,11 @@ func (a OutputArgs) String() string {
 
 // CallAssertion is an assertion for a call to a mock object.
 type CallAssertion struct {
-	desc     *callDescriptor
-	args     []any
-	minCount int
-	maxCount int
-	after    map[*callDescriptor]struct{}
-	do       reflect.Value
+	desc  *callDescriptor
+	args  []any
+	count optional.Value[intrange.PartialRange[int64]]
+	after map[*callDescriptor]struct{}
+	do    reflect.Value
 }
 
 // After sets the order of the current call after the other call.
@@ -136,24 +138,29 @@ func (a CallAssertion) Before(other CallAssertion) {
 	other.After(a)
 }
 
+func (a CallAssertion) AnyTimes() CallAssertion {
+	a.count = optional.Some(intrange.EmptyPartial[int64]())
+
+	return a
+}
+
 // Times sets the number of times the call is expected to be made.
-func (a CallAssertion) Times(count int) CallAssertion {
-	a.minCount = count
-	a.maxCount = count
+func (a CallAssertion) Times(count int64) CallAssertion {
+	a.count = optional.Some(intrange.WithMin(count).WithMax(count))
 
 	return a
 }
 
 // AtLeast sets the minimum number of times the call is expected to be made.
-func (a CallAssertion) AtLeast(count int) CallAssertion {
-	a.minCount = count
+func (a CallAssertion) AtLeast(count int64) CallAssertion {
+	a.count = optional.Some(a.count.OrZero().WithMin(count))
 
 	return a
 }
 
 // AtMost sets the maximum number of times the call is expected to be made.
-func (a CallAssertion) AtMost(count int) CallAssertion {
-	a.maxCount = count
+func (a CallAssertion) AtMost(count int64) CallAssertion {
+	a.count = optional.Some(a.count.OrZero().WithMax(count))
 
 	return a
 }
@@ -263,6 +270,10 @@ func (a CallAssertion) clone() CallAssertion {
 	return a
 }
 
+func (a CallAssertion) countConstraint() intrange.PartialRange[int64] {
+	return a.count.OrSome(defaultCallCount)
+}
+
 // ---
 
 type expectedCall struct {
@@ -272,11 +283,11 @@ type expectedCall struct {
 }
 
 func (c *expectedCall) registerCall() bool {
-	var count int64
+	count, constraint := int64(0), c.assertion.countConstraint()
 
 	for {
 		count = c.count.Load()
-		if c.assertion.maxCount > 0 && count >= int64(c.assertion.maxCount) {
+		if optional.Map(constraint.Max(), le(count)).OrSome(false) {
 			return false
 		}
 
@@ -286,14 +297,14 @@ func (c *expectedCall) registerCall() bool {
 		}
 	}
 
-	return count >= int64(c.assertion.minCount)
+	return true
 }
 
 func (c *expectedCall) String() string {
 	var sb strings.Builder
 	sb.WriteString(c.assertion.desc.String())
-	if c.assertion.minCount > 0 || c.assertion.maxCount > 0 {
-		fmt.Fprintf(&sb, " called %d of %d..%d times", c.count.Load(), c.assertion.minCount, c.assertion.maxCount)
+	if constraint := c.assertion.countConstraint(); !constraint.IsEmpty() {
+		fmt.Fprintf(&sb, ", called %d of %s times", c.count.Load(), constraint)
 	}
 
 	return sb.String()
@@ -400,4 +411,21 @@ func callerMethodName(skip int) string {
 
 // ---
 
-var typeRegistry sync.Map
+func le[T constraints.Integer](b T) func(T) bool {
+	return func(a T) bool {
+		return a <= b
+	}
+}
+
+func ge[T constraints.Integer](b T) func(T) bool {
+	return func(a T) bool {
+		return a >= b
+	}
+}
+
+// ---
+
+var (
+	typeRegistry     sync.Map
+	defaultCallCount = intrange.WithMin[int64](1).WithMax(1)
+)
