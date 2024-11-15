@@ -34,14 +34,6 @@ func Call[T any](mock AnyMockFor[T], method string, args ...any) CallAssertion {
 		panic(fmt.Sprintf("mock: %v does not implement %v", reflect.TypeOf(mock), te.typ))
 	}
 
-	for i := range args {
-		if _, ok := args[i].(tst.Assertion); ok {
-			continue
-		}
-
-		args[i] = tst.Equal(args[i])
-	}
-
 	mock.init()
 
 	return CallAssertion{
@@ -50,7 +42,9 @@ func Call[T any](mock AnyMockFor[T], method string, args ...any) CallAssertion {
 			method:  methodType,
 			lineTag: tst.CallerLine(1),
 		},
-		args: args,
+		callAssertionData: &callAssertionData{
+			args: InputArgs{args},
+		},
 	}
 }
 
@@ -101,6 +95,28 @@ func (a InputArgs) String() string {
 	return fmt.Sprintf("InputArgs(%v)", a.args)
 }
 
+func (a InputArgs) match(in []any) bool {
+	if len(a.args) != len(in) {
+		return false
+	}
+
+	for i, arg := range a.args {
+		if assertion, ok := arg.(tst.Assertion); ok {
+			if !tst.Match(assertion, in[i]) {
+				return false
+			}
+		} else if !reflect.DeepEqual(arg, in[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (a InputArgs) clone() InputArgs {
+	return InputArgs{args: slices.Clone(a.args)}
+}
+
 // ---
 
 // OutputArgs is a list of output arguments in a method call.
@@ -117,27 +133,29 @@ func (a OutputArgs) String() string {
 
 // CallAssertion is an assertion for a call to a mock object.
 type CallAssertion struct {
-	desc  *callDescriptor
-	args  []any
-	count optional.Value[intrange.PartialRange[int64]]
-	after map[*callDescriptor]struct{}
-	do    reflect.Value
+	desc *callDescriptor
+	*callAssertionData
 }
 
 // After sets the order of the current call after the other call.
-func (a CallAssertion) After(other CallAssertion) {
+func (a CallAssertion) After(other CallAssertion) CallAssertion {
 	if a.after == nil {
 		a.after = make(map[*callDescriptor]struct{})
 	}
 
 	a.after[other.desc] = struct{}{}
+
+	return a
 }
 
 // Before sets the order of the current call before the other call.
-func (a CallAssertion) Before(other CallAssertion) {
+func (a CallAssertion) Before(other CallAssertion) CallAssertion {
 	other.After(a)
+
+	return a
 }
 
+// AnyTimes allows the call to be made any number of times.
 func (a CallAssertion) AnyTimes() CallAssertion {
 	a.count = optional.Some(intrange.EmptyPartial[int64]())
 
@@ -217,10 +235,6 @@ func (a CallAssertion) Do(f any) CallAssertion {
 
 // Return sets the return values for the call.
 func (a CallAssertion) Return(values ...any) CallAssertion {
-	if a.desc.method.Type.NumIn() != 0 {
-		panic("mock: Return must be used only with methods that have no input arguments")
-	}
-
 	if a.desc.method.Type.NumOut() != len(values) {
 		panic(fmt.Sprintf("mock: %s.%s requires %d return values",
 			a.desc.mock.typ,
@@ -260,18 +274,35 @@ func (a CallAssertion) setup(t test) {
 	a.desc.mock.expectCall(t, a)
 }
 
+func (a CallAssertion) countConstraint() intrange.PartialRange[int64] {
+	return a.count.OrSome(defaultCallCount)
+}
+
 // TODO: use
 //
 //nolint:unused // later
 func (a CallAssertion) clone() CallAssertion {
-	a.args = slices.Clone(a.args)
-	a.after = maps.Clone(a.after)
+	a.callAssertionData = a.callAssertionData.clone()
 
 	return a
 }
 
-func (a CallAssertion) countConstraint() intrange.PartialRange[int64] {
-	return a.count.OrSome(defaultCallCount)
+// ---
+
+type callAssertionData struct {
+	args  InputArgs
+	count optional.Value[intrange.PartialRange[int64]]
+	after map[*callDescriptor]struct{}
+	do    reflect.Value
+}
+
+func (a *callAssertionData) clone() *callAssertionData {
+	return &callAssertionData{
+		a.args.clone(),
+		a.count,
+		maps.Clone(a.after),
+		a.do,
+	}
 }
 
 // ---
@@ -305,6 +336,9 @@ func (c *expectedCall) String() string {
 	sb.WriteString(c.assertion.desc.String())
 	if constraint := c.assertion.countConstraint(); !constraint.IsEmpty() {
 		fmt.Fprintf(&sb, ", called %d of %s times", c.count.Load(), constraint)
+	}
+	for dep := range c.assertion.after {
+		fmt.Fprintf(&sb, "\n    Expected to be called after %s", dep)
 	}
 
 	return sb.String()

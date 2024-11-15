@@ -131,10 +131,6 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 		relatedCalls []*expectedCall
 	)
 
-	// if len(m.exectedCalls) == 0 {
-	// 	panic("mock: HandleCall called outside of a test")
-	// }
-
 	for controller, calls := range m.exectedCalls {
 		if mc != nil && mc != controller {
 			continue
@@ -151,7 +147,18 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 
 			relatedCalls = append(relatedCalls, call)
 
-			if !reflect.DeepEqual(call.assertion.args, in) {
+			if !call.assertion.args.match(in) {
+				continue
+			}
+
+			depsSatisfied := true
+			for dep := range call.assertion.after {
+				if depCall, ok := calls[dep]; !ok || depCall.count.Load() == 0 {
+					depsSatisfied = false
+					break
+				}
+			}
+			if !depsSatisfied {
 				continue
 			}
 
@@ -167,7 +174,18 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 
 	if matchedCall == nil {
 		var sb strings.Builder
+
 		fmt.Fprintf(&sb, "mock: unexpected call to %s.%s", m.typ, method.Name)
+
+		sb.WriteByte('(')
+		for i, arg := range in {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("%#v", arg))
+		}
+		sb.WriteByte(')')
+
 		for _, call := range relatedCalls {
 			_, _ = fmt.Fprintf(&sb, "\n(*) See %s", call)
 		}
@@ -180,9 +198,11 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 		inValues[i] = reflect.ValueOf(arg)
 	}
 
-	outValues := matchedCall.assertion.do.Call(inValues)
-	for i, arg := range out {
-		reflect.ValueOf(arg).Elem().Set(outValues[i])
+	if matchedCall.assertion.do.IsValid() {
+		outValues := matchedCall.assertion.do.Call(inValues)
+		for i, arg := range out {
+			reflect.ValueOf(arg).Elem().Set(outValues[i])
+		}
 	}
 }
 
