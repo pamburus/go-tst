@@ -134,6 +134,12 @@ func MatchError(expected error) Assertion {
 	return matchError{expected}
 }
 
+// matchErrorByAnyOf returns an assertion that passes in case all the values to be tested
+// are errors that pass test `fn(actual)`.
+func MatchErrorBy(fn func(error) bool, desc string) Assertion {
+	return matchErrorBy{fn, desc}
+}
+
 // HaveLen returns an assertion that passes in case all the values to be tested
 // have length equal to the specified value.
 func HaveLen(n ...any) Assertion {
@@ -274,6 +280,10 @@ func (a equal) at(i int) Assertion {
 	return equal{[]any{a.expected[i]}}
 }
 
+func (a equal) String() string {
+	return a.description()
+}
+
 // ---
 
 type equalUsing struct {
@@ -337,6 +347,10 @@ func (a equalUsing) at(i int) Assertion {
 	return equal{[]any{a.expected[i]}}
 }
 
+func (a equalUsing) String() string {
+	return a.description()
+}
+
 // ---
 
 type comparison struct {
@@ -391,6 +405,10 @@ func (a comparison) at(i int) Assertion {
 	return comparison{[]any{a.expected[i]}, a.expectedResult, a.expectedDescription}
 }
 
+func (a comparison) String() string {
+	return a.description()
+}
+
 // ---
 
 type boolean struct {
@@ -424,6 +442,10 @@ func (a boolean) at(int) Assertion {
 	return a
 }
 
+func (a boolean) String() string {
+	return a.description()
+}
+
 // ---
 
 type zero struct{}
@@ -447,6 +469,10 @@ func (a zero) complexity() int {
 
 func (a zero) at(int) Assertion {
 	return a
+}
+
+func (a zero) String() string {
+	return a.description()
 }
 
 // ---
@@ -487,6 +513,10 @@ func (a nilValue) at(int) Assertion {
 	return a
 }
 
+func (a nilValue) String() string {
+	return a.description()
+}
+
 // ---
 
 type nilError struct{}
@@ -522,6 +552,10 @@ func (a nilError) complexity() int {
 
 func (a nilError) at(int) Assertion {
 	return a
+}
+
+func (a nilError) String() string {
+	return a.description()
 }
 
 // ---
@@ -561,6 +595,54 @@ func (a matchError) complexity() int {
 
 func (a matchError) at(int) Assertion {
 	return a
+}
+
+func (a matchError) String() string {
+	return a.description()
+}
+
+// ---
+
+type matchErrorBy struct {
+	expected func(error) bool
+	desc     string
+}
+
+func (a matchErrorBy) check(actual []any) ([]bool, error) {
+	result := make([]bool, len(actual))
+
+	for i := range actual {
+		if actual[i] == nil {
+			result[i] = false
+
+			continue
+		}
+
+		val, ok := actual[i].(error)
+		if !ok {
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), typeOf(val)}
+		}
+
+		result[i] = a.expected(val)
+	}
+
+	return result, nil
+}
+
+func (a matchErrorBy) description() string {
+	return fmt.Sprintf("be non-nil and match error by %s", a.desc)
+}
+
+func (a matchErrorBy) complexity() int {
+	return 1
+}
+
+func (a matchErrorBy) at(int) Assertion {
+	return a
+}
+
+func (a matchErrorBy) String() string {
+	return a.description()
 }
 
 // ---
@@ -646,6 +728,10 @@ func (a haveLen) at(i int) Assertion {
 	return haveLen{[]any{a.expected[i]}}
 }
 
+func (a haveLen) String() string {
+	return a.description()
+}
+
 // ---
 
 type haveField struct {
@@ -692,6 +778,10 @@ func (a haveField) complexity() int {
 
 func (a haveField) at(int) Assertion {
 	return a
+}
+
+func (a haveField) String() string {
+	return a.description()
 }
 
 // ---
@@ -742,6 +832,10 @@ func (a contain) complexity() int {
 
 func (a contain) at(int) Assertion {
 	return a
+}
+
+func (a contain) String() string {
+	return a.description()
 }
 
 // ---
@@ -799,6 +893,10 @@ func (a str[T]) complexity() int {
 
 func (a str[T]) at(i int) Assertion {
 	return str[T]{[]Predicate[T]{a.predicates[i]}}
+}
+
+func (a str[T]) String() string {
+	return a.description()
 }
 
 // ---
@@ -859,6 +957,10 @@ func (a beStruct) complexity() int {
 
 func (a beStruct) at(int) Assertion {
 	return a
+}
+
+func (a beStruct) String() string {
+	return a.description()
 }
 
 // ---
@@ -1156,3 +1258,25 @@ func (p predicate[T]) description() string {
 }
 
 func (predicate[T]) sealed() {}
+
+// ---
+
+var (
+	_ fmt.Stringer = value{}
+	_ fmt.Stringer = values{}
+	_ fmt.Stringer = indentedDescribable{}
+	_ fmt.Stringer = beStruct{}
+	_ fmt.Stringer = equal{}
+	_ fmt.Stringer = equalUsing{}
+	_ fmt.Stringer = comparison{}
+	_ fmt.Stringer = boolean{}
+	_ fmt.Stringer = zero{}
+	_ fmt.Stringer = nilValue{}
+	_ fmt.Stringer = nilError{}
+	_ fmt.Stringer = matchError{}
+	_ fmt.Stringer = matchErrorBy{}
+	_ fmt.Stringer = haveLen{}
+	_ fmt.Stringer = haveField{}
+	_ fmt.Stringer = contain{}
+	_ fmt.Stringer = str[string]{}
+)

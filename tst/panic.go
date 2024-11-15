@@ -10,8 +10,8 @@ func Panic() Assertion {
 	return panicAssertion{}
 }
 
-func PanicWith(values ...any) Assertion {
-	return panicAssertion{values}
+func PanicAndPanicValueTo(assertions ...Assertion) Assertion {
+	return panicAssertion{assertions}
 }
 
 type PanicAssertion interface {
@@ -22,7 +22,7 @@ type PanicAssertion interface {
 // ---
 
 type panicAssertion struct {
-	targets []any
+	assertions []Assertion
 }
 
 func (a panicAssertion) check(actual []any) ([]bool, error) {
@@ -39,42 +39,35 @@ func (a panicAssertion) check(actual []any) ([]bool, error) {
 		}
 
 		var assertion Assertion
-		if pv, ok := at(a.targets, i); !ok || pv == nil {
+		if aa, ok := at(a.assertions, i); !ok || aa == nil {
 			assertion = Not(BeNil())
-		} else if pv, ok := pv.(Assertion); ok {
-			assertion = pv
 		} else {
-			assertion = Equal(pv)
+			assertion = aa
 		}
 
 		pv := catchReflect(v)
-		if pv == nil {
-			tpv, _ := at(a.targets, i)
-			result[i] = tpv == nil
-		} else {
-			res, err := assertion.check([]any{pv})
-			if err != nil {
-				return nil, err
-			}
-
-			result[i] = res[0]
+		res, err := assertion.check([]any{pv})
+		if err != nil {
+			return nil, err
 		}
+
+		result[i] = res[0]
 	}
 
 	return result, nil
 }
 
 func (a panicAssertion) description() string {
-	if len(a.targets) == 0 {
+	if len(a.assertions) == 0 {
 		return "panic"
 	}
 
 	var b strings.Builder
 	b.WriteString("panic with\n")
 
-	for i, target := range a.targets {
-		val := indented(1, value{target})
-		if len(a.targets) > 1 {
+	for i, assertion := range a.assertions {
+		val := indented(1, value{assertion})
+		if len(a.assertions) > 1 {
 			fmt.Fprintf(&b, "[#%d] %s\n", i+1, val)
 		} else {
 			fmt.Fprintf(&b, "%s\n", val)
