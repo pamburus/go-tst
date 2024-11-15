@@ -1,6 +1,10 @@
 package mock
 
-import "testing"
+import (
+	"sync"
+	"sync/atomic"
+	"testing"
+)
 
 // NewController creates a new mock controller.
 func NewController(t testing.TB) *Controller {
@@ -8,7 +12,9 @@ func NewController(t testing.TB) *Controller {
 
 	controller := &Controller{
 		t,
+		sync.Mutex{},
 		make(map[*mock]struct{}),
+		atomic.Bool{},
 	}
 	t.Cleanup(controller.Finish)
 
@@ -20,14 +26,36 @@ func NewController(t testing.TB) *Controller {
 // Controller is a mock controller.
 type Controller struct {
 	tb    testing.TB
+	mu    sync.Mutex
 	mocks map[*mock]struct{}
+	done  atomic.Bool
 }
 
 // Checkpoint ensures all pending assertions are satisfied.
 func (c *Controller) Checkpoint() {
-	// TODO: Implement this.
+	c.tb.Helper()
+
+	for mock := range c.mocks {
+		mock.mu.Lock()
+		defer mock.mu.Unlock()
+
+		for controller, calls := range mock.exectedCalls {
+			if controller != c {
+				continue
+			}
+
+			for _, call := range calls {
+				if !call.assertion.countConstraint().Contains(call.count.Load()) {
+					c.tb.Errorf("mock: missing call %s", call)
+				}
+			}
+		}
+	}
 }
 
 // Finish ensures all assertions are satisfied and forbids adding new assertions.
 func (c *Controller) Finish() {
+	c.tb.Helper()
+	c.done.Store(true)
+	c.Checkpoint()
 }

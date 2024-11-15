@@ -25,7 +25,7 @@ func TestStringerMock(tt *testing.T) {
 	m := &StringerMock{}
 
 	mock.Expect(t,
-		mock.Call(m, "String").Times(1).Return("hello"),
+		mock.Call(m, "String").Return("hello"),
 	)
 
 	t.Expect(m.String()).To(Equal("hello"))
