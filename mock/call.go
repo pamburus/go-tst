@@ -169,18 +169,23 @@ func (a CallAssertion) Times(count int64) CallAssertion {
 	return a
 }
 
-// AtLeast sets the minimum number of times the call is expected to be made.
-func (a CallAssertion) AtLeast(count int64) CallAssertion {
+// MinTimes sets the minimum number of times the call is expected to be made.
+func (a CallAssertion) MinTimes(count int64) CallAssertion {
 	a.count = optional.Some(a.count.OrZero().WithMin(count))
 
 	return a
 }
 
-// AtMost sets the maximum number of times the call is expected to be made.
-func (a CallAssertion) AtMost(count int64) CallAssertion {
+// MaxTimes sets the maximum number of times the call is expected to be made.
+func (a CallAssertion) MaxTimes(count int64) CallAssertion {
 	a.count = optional.Some(a.count.OrZero().WithMax(count))
 
 	return a
+}
+
+// Once sets the call to be made exactly once.
+func (a CallAssertion) Once() CallAssertion {
+	return a.Times(1)
 }
 
 // Do sets the function to be called when the assertion is satisfied.

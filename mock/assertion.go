@@ -1,8 +1,6 @@
 // Package mock provides a way to create and manage mock objects.
 package mock
 
-import "errors"
-
 // Expect expects the given assertions to be true.
 func Expect(t test, assertions ...Assertion) {
 	t.Helper()
@@ -43,15 +41,14 @@ func (b ExpectationBuilder) Expect(assertions ...Assertion) {
 
 	pv := catch(b.f)
 	if pv != nil {
-		var unexpectedCall errUnexpectedCallError
-		if err, ok := pv.(error); ok && errors.As(err, &unexpectedCall) {
-			b.t.Error(unexpectedCall)
+		if err, ok := pv.(error); ok && IsUnexpectedCallError(err) {
+			b.t.Error(err)
 		} else {
 			panic(pv)
 		}
 	}
 
-	getController(b.t.Context()).Checkpoint()
+	mustGetController(b.t.Context()).Checkpoint()
 }
 
 // ---

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func IsUnexpectedCall(err error) bool {
+func IsUnexpectedCallError(err error) bool {
 	var e errUnexpectedCallError
 
 	return errors.As(err, &e)
