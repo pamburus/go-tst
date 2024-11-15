@@ -25,7 +25,7 @@ type errUnexpectedCallError struct {
 func (e errUnexpectedCallError) Error() string {
 	var sb strings.Builder
 
-	fmt.Fprintf(&sb, "mock: unexpected call to %s.%s", e.typ, e.method.Name)
+	fmt.Fprintf(&sb, "mock: unexpected call %s.%s", e.typ, e.method.Name)
 
 	sb.WriteByte('(')
 	for i, arg := range e.args {

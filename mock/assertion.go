@@ -5,6 +5,8 @@ import "errors"
 
 // Expect expects the given assertions to be true.
 func Expect(t test, assertions ...Assertion) {
+	t.Helper()
+
 	for _, assertion := range assertions {
 		assertion.setup(t)
 	}
@@ -37,19 +39,16 @@ type ExpectationBuilder struct {
 func (b ExpectationBuilder) Expect(assertions ...Assertion) {
 	b.t.Helper()
 
-	for _, assertion := range assertions {
-		assertion.setup(b.t)
-	}
+	Expect(b.t, assertions...)
+
 	pv := catch(b.f)
 	if pv != nil {
-		if err, ok := pv.(error); ok {
-			var unexpectedCall errUnexpectedCallError
-			if errors.As(err, &unexpectedCall) {
-				b.t.Error(unexpectedCall)
-				return
-			}
+		var unexpectedCall errUnexpectedCallError
+		if err, ok := pv.(error); ok && errors.As(err, &unexpectedCall) {
+			b.t.Error(unexpectedCall)
+		} else {
+			panic(pv)
 		}
-		panic(pv)
 	}
 
 	getController(b.t.Context()).Checkpoint()
