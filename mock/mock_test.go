@@ -60,8 +60,16 @@ func TestStringerMock(tt *testing.T) {
 		mock.Call(m, "String").Return("bye"),
 	)
 
+	mock.On(t).During(func() {
+		t.Expect(m.String()).To(Equal("hello"))
+		t.Expect(m.String()).To(Equal("bye"))
+	}).Expect(mock.InOrder(
+		mock.Call(m, "String").Return("hello"),
+		mock.Call(m, "String").Return("bye"),
+	))
+
 	t.Expect(m.String).To(PanicAndPanicValueTo(
-		MatchErrorBy(mock.IsUnexpectedCall, "IsUnexpectedCall"),
+		MatchErrorBy(mock.IsUnexpectedCallError, "IsUnexpectedCallError"),
 	))
 }
 

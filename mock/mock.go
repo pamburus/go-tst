@@ -152,7 +152,7 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 
 			depsSatisfied := true
 			for dep := range call.assertion.after {
-				if depCall, ok := calls[dep]; !ok || depCall.count.Load() == 0 {
+				if depCall, ok := calls[dep]; !ok || !depCall.assertion.countConstraint().Contains(depCall.count.Load()) {
 					depsSatisfied = false
 					break
 				}
@@ -241,6 +241,14 @@ func getController(ctx context.Context) *Controller {
 	}
 
 	return nil
+}
+
+func mustGetController(ctx context.Context) *Controller {
+	if controller := getController(ctx); controller != nil {
+		return controller
+	}
+
+	panic("mock: no controller found in the context")
 }
 
 // ---
