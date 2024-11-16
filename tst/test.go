@@ -4,27 +4,36 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/pamburus/go-tst/tst/constraints"
 )
 
 // New constructs a new Test based on the t.
-func New[T HT[T]](tt T) Test {
+func New[T constraints.HT[T]](tt T) Test {
 	return Build(tt).Done()
 }
 
-// Test transparently wraps compatible an object compatible with [testing.TB]
-// and adds additional methods to make expectations in an assertive way.
-type Test interface {
+// NewT constructs a new T based on the tt.
+func NewT[TT constraints.T[TT]](tt TT) T {
+	return &ti[TT]{Build(tt).done().tb, tt}
+}
+
+// Build constructs a new Test based on the tt with advanced options.
+func Build[T constraints.HT[T]](tt T) TestBuilder[T] {
+	return TestBuilder[T]{test[T]{&tb[T]{core: core{TB: tt}}}}.
+		WithContext(context.Background())
+}
+
+// ---
+
+// TB transparently extends [testing.TB] interface with additional methods.
+// Adds support for context, expectation building, line tags, timeouts and deadlines.
+type TB interface {
 	testing.TB
 
 	// Context returns the context associated with the test.
 	// Context is done when the test is done.
 	Context() context.Context
-
-	// Run runs sub-test using f.
-	Run(name string, f func(Test)) bool
-
-	// RunContext runs sub-test using f feeding it with test's context.
-	RunContext(name string, f func(context.Context, Test)) bool
 
 	// Expect begins expectation building process against the given values.
 	Expect(values ...any) Expectation
@@ -46,16 +55,30 @@ type Test interface {
 	get() *core
 }
 
-// Build constructs a new Test based on the tt with advanced options.
-func Build[T HT[T]](tt T) TestBuilder[T] {
-	return TestBuilder[T]{test[T]{core: core{TB: tt}}}.
-		WithContext(context.Background())
+// Test extends [TB] with methods for hierarchical test execution taking [Test].
+type Test interface {
+	HT[Test]
+}
+
+// T extends [TB] with methods for hierarchical test execution taking [T].
+type T interface {
+	HT[T]
+	constraints.T[T]
+}
+
+// HT extends [TB] with methods for hierarchical test execution taking provided type parameter T.
+type HT[T constraints.HT[T]] interface {
+	TB
+	constraints.HT[T]
+
+	// RunContext runs sub-test using f feeding it with test's context.
+	RunContext(name string, f func(context.Context, T)) bool
 }
 
 // ---
 
 // TestBuilder is a builder for Test.
-type TestBuilder[T HT[T]] struct {
+type TestBuilder[T constraints.HT[T]] struct {
 	t test[T]
 }
 
@@ -84,58 +107,98 @@ func (b TestBuilder[T]) WithContextFunc(ctxFunc func(T) context.Context) TestBui
 
 // Done returns the constructed Test.
 func (b TestBuilder[T]) Done() Test {
-	setup(&b.t)
+	setup(b.t.tb)
 
+	return &b.t
+}
+
+func (b TestBuilder[T]) done() *test[T] {
 	return &b.t
 }
 
 // ---
 
-type test[T HT[T]] struct {
-	core
-	ctxFunc func(T) context.Context
-}
-
-func (t *test[T]) Context() context.Context {
-	return t.ctx
+type test[T constraints.HT[T]] struct {
+	*tb[T]
 }
 
 func (t *test[T]) Run(name string, f func(Test)) bool {
-	t.Helper()
-
-	return t.TB.(T).Run(name, func(tt T) {
-		tt.Helper()
-		f(t.fork(tt))
+	return t.run(name, func(tt *tb[T]) {
+		f(&test[T]{tt})
 	})
 }
 
 func (t *test[T]) RunContext(name string, f func(context.Context, Test)) bool {
-	return t.Run(name, func(child Test) {
-		f(child.Context(), child)
+	return t.runContext(name, func(ctx context.Context, tt *tb[T]) {
+		f(ctx, &test[T]{tt})
 	})
 }
 
-func (t *test[T]) Expect(values ...any) Expectation {
+// ---
+
+type ti[X constraints.T[X]] struct {
+	*tb[X]
+	tHelper
+}
+
+func (t *ti[X]) Run(name string, f func(T)) bool {
+	return t.run(name, func(tt *tb[X]) {
+		f(&ti[X]{tt, tt})
+	})
+}
+
+func (t *ti[X]) RunContext(name string, f func(context.Context, T)) bool {
+	return t.runContext(name, func(ctx context.Context, tt *tb[X]) {
+		f(ctx, &ti[X]{tt, tt})
+	})
+}
+
+func (t *ti[X]) Parallel() {
+	t.Inner().Parallel()
+}
+
+// ---
+
+type tHelper interface {
+	Helper()
+}
+
+// ---
+
+type tb[T constraints.HT[T]] struct {
+	core
+	ctxFunc func(T) context.Context
+}
+
+func (t *tb[T]) Inner() T {
+	return t.TB.(T)
+}
+
+func (t *tb[T]) Context() context.Context {
+	return t.ctx
+}
+
+func (t *tb[T]) Expect(values ...any) Expectation {
 	return Expectation{&t.core, values, CallerLine(1)}
 }
 
-func (t *test[T]) AddLineTags(tags ...LineTag) {
+func (t *tb[T]) AddLineTags(tags ...LineTag) {
 	t.addLineTags(tags...)
 }
 
-func (t *test[T]) SetTimeout(timeout time.Duration) {
+func (t *tb[T]) SetTimeout(timeout time.Duration) {
 	ctx, cancel := context.WithTimeoutCause(t.ctx, timeout, errTestTimeout)
 	t.ctx = ctx
 	t.Cleanup(cancel)
 }
 
-func (t *test[T]) SetDeadline(deadline time.Time) {
+func (t *tb[T]) SetDeadline(deadline time.Time) {
 	ctx, cancel := context.WithDeadlineCause(t.ctx, deadline, errTestDeadlineExceeded)
 	t.ctx = ctx
 	t.Cleanup(cancel)
 }
 
-func (t *test[T]) Deadline() (deadline time.Time, ok bool) {
+func (t *tb[T]) Deadline() (deadline time.Time, ok bool) {
 	d1, ok1 := t.ctx.Deadline()
 	var d2 time.Time
 	var ok2 bool
@@ -163,7 +226,22 @@ func (t *test[T]) Deadline() (deadline time.Time, ok bool) {
 	return d2, true
 }
 
-func (t *test[T]) fork(tt T) *test[T] {
+func (t *tb[T]) run(name string, f func(*tb[T])) bool {
+	t.Helper()
+
+	return t.TB.(T).Run(name, func(tt T) {
+		tt.Helper()
+		f(t.fork(tt))
+	})
+}
+
+func (t *tb[T]) runContext(name string, f func(context.Context, *tb[T])) bool {
+	return t.run(name, func(child *tb[T]) {
+		f(child.Context(), child)
+	})
+}
+
+func (t *tb[T]) fork(tt T) *tb[T] {
 	tt.Helper()
 
 	ctx := t.ctx
@@ -176,15 +254,15 @@ func (t *test[T]) fork(tt T) *test[T] {
 		cancel(errTestIsDone)
 	})
 
-	fork := &test[T]{core{tt, ctx, t.tags}, t.ctxFunc}
+	fork := &tb[T]{core{tt, ctx, t.tags}, t.ctxFunc}
 	setup(fork)
 
 	return fork
 }
 
-func (t *test[T]) sealed() {}
+func (t *tb[T]) sealed() {}
 
-func (t *test[T]) get() *core {
+func (t *tb[T]) get() *core {
 	return &t.core
 }
 
@@ -202,7 +280,7 @@ func (c *core) addLineTags(tags ...LineTag) {
 
 // ---
 
-func setup(t Test) {
+func setup[T constraints.HT[T]](t *tb[T]) {
 	t.Helper()
 	t.Cleanup(func() {
 		if t.Failed() {
