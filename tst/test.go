@@ -2,26 +2,51 @@ package tst
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/pamburus/go-tst/tst/constraints"
 )
 
-// New constructs a new Test based on the t.
+// New constructs a new [Test] based on the t.
 func New[T constraints.HT[T]](tt T) Test {
 	return Build(tt).Done()
 }
 
-// NewT constructs a new T based on the tt.
+// NewT constructs a new [T] based on the tt.
 func NewT[TT constraints.T[TT]](tt TT) T {
 	return &ti[TT]{Build(tt).done().tb, tt}
 }
 
-// Build constructs a new Test based on the tt with advanced options.
+// Build constructs a new [Test] based on the tt with advanced options.
 func Build[T constraints.HT[T]](tt T) TestBuilder[T] {
-	return TestBuilder[T]{test[T]{&tb[T]{core: core{TB: tt}}}}.
+	return TestBuilder[T]{test[T]{&tb[T]{
+		core: core{
+			TB: tt,
+			mu: &sync.Mutex{},
+		},
+	}}}.
 		WithContext(context.Background())
+}
+
+// CurrentTest returns the [Test] associated with the given context.
+func CurrentTest(ctx context.Context) Test {
+	if t, ok := ctxGet[Test](ctx); ok {
+		return t
+	}
+
+	panic("tst: no test is associated with the given context")
+}
+
+// CurrentT returns the [T] associated with the given context.
+func CurrentT(ctx context.Context) T {
+	if t, ok := ctxGet[T](ctx); ok {
+		return t
+	}
+
+	panic("tst: no test is associated with the given context")
 }
 
 // ---
@@ -110,7 +135,7 @@ func (b TestBuilder[T]) WithContextFunc(ctxFunc func(T) context.Context) TestBui
 // WithPlugins adds plugins to the test.
 func (b TestBuilder[T]) WithPlugins(plugins ...Plugin) TestBuilder[T] {
 	b.t.plugins = append(b.t.plugins, plugins...)
-	b.t.ctx = setupPlugins(b.t.ctx, b.t.TB, plugins...)
+	b.t.ctx = setupPlugins(b.t.ctx, &b.t, plugins...)
 
 	return b
 }
@@ -133,14 +158,20 @@ type test[T constraints.HT[T]] struct {
 }
 
 func (t *test[T]) Run(name string, f func(Test)) bool {
+	t.Helper()
+
 	return t.run(name, func(tt *tb[T]) {
-		f(&test[T]{tt})
+		child := &test[T]{tt}
+		child.ctx = ctxPut[Test](tt.ctx, child)
+		f(child)
 	})
 }
 
 func (t *test[T]) RunContext(name string, f func(context.Context, Test)) bool {
-	return t.runContext(name, func(ctx context.Context, tt *tb[T]) {
-		f(ctx, &test[T]{tt})
+	t.Helper()
+
+	return t.Run(name, func(tt Test) {
+		f(tt.Context(), tt)
 	})
 }
 
@@ -152,14 +183,20 @@ type ti[X constraints.T[X]] struct {
 }
 
 func (t *ti[X]) Run(name string, f func(T)) bool {
+	t.Helper()
+
 	return t.run(name, func(tt *tb[X]) {
-		f(&ti[X]{tt, tt})
+		child := &ti[X]{tt, tt}
+		child.ctx = ctxPut[T](tt.ctx, child)
+		f(child)
 	})
 }
 
 func (t *ti[X]) RunContext(name string, f func(context.Context, T)) bool {
-	return t.runContext(name, func(ctx context.Context, tt *tb[X]) {
-		f(ctx, &ti[X]{tt, tt})
+	t.Helper()
+
+	return t.Run(name, func(tt T) {
+		f(tt.Context(), tt)
 	})
 }
 
@@ -245,12 +282,6 @@ func (t *tb[T]) run(name string, f func(*tb[T])) bool {
 	})
 }
 
-func (t *tb[T]) runContext(name string, f func(context.Context, *tb[T])) bool {
-	return t.run(name, func(child *tb[T]) {
-		f(child.Context(), child)
-	})
-}
-
 func (t *tb[T]) fork(tt T) *tb[T] {
 	tt.Helper()
 
@@ -265,7 +296,7 @@ func (t *tb[T]) fork(tt T) *tb[T] {
 	})
 
 	fork := &tb[T]{
-		core{tt, ctx, t.tags, t.plugins},
+		core{tt, ctx, slices.Clip(t.tags), slices.Clip(t.plugins), &sync.Mutex{}},
 		t.ctxFunc,
 	}
 	setup(fork)
@@ -286,17 +317,25 @@ type core struct {
 	ctx     context.Context
 	tags    []LineTag
 	plugins []Plugin
+	mu      *sync.Mutex
 }
 
-func (c *core) addLineTags(tags ...LineTag) {
-	c.tags = append(c.tags, tags...)
+func (t *core) addLineTags(tags ...LineTag) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.tags = append(slices.Clip(t.tags), tags...)
 }
 
 // ---
 
 func setup[T constraints.HT[T]](t *tb[T]) {
 	t.Helper()
-	t.ctx = setupPlugins(t.ctx, t, t.plugins...)
+
+	t.ctx = ctxPut(t.ctx, t)
+	t.ctx = ctxPut(t.ctx, &t.core)
+	t.ctx = setupPlugins(t.ctx, t.TB, t.plugins...)
+
 	t.Cleanup(func() {
 		if t.Failed() {
 			for _, tag := range t.get().tags {

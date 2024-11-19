@@ -4,6 +4,9 @@ import (
 	"runtime"
 )
 
+// TODO: use
+//
+//nolint:unused // later
 func callers(skip int) []uintptr {
 	result := make([]uintptr, 64)
 
