@@ -90,6 +90,8 @@ func (b TestBuilder[T]) WithContext(ctx context.Context) TestBuilder[T] {
 		b.t.Cleanup(func() {
 			cancel(errTestIsDone)
 		})
+
+		b.t.ctx = setupPlugins(b.t.ctx, b.t.TB, b.t.plugins...)
 	}
 
 	return b
@@ -101,6 +103,14 @@ func (b TestBuilder[T]) WithContextFunc(ctxFunc func(T) context.Context) TestBui
 		b.t.ctxFunc = ctxFunc
 		b = b.WithContext(ctxFunc(b.t.TB.(T)))
 	}
+
+	return b
+}
+
+// WithPlugins adds plugins to the test.
+func (b TestBuilder[T]) WithPlugins(plugins ...Plugin) TestBuilder[T] {
+	b.t.plugins = append(b.t.plugins, plugins...)
+	b.t.ctx = setupPlugins(b.t.ctx, b.t.TB, plugins...)
 
 	return b
 }
@@ -254,7 +264,10 @@ func (t *tb[T]) fork(tt T) *tb[T] {
 		cancel(errTestIsDone)
 	})
 
-	fork := &tb[T]{core{tt, ctx, t.tags}, t.ctxFunc}
+	fork := &tb[T]{
+		core{tt, ctx, t.tags, t.plugins},
+		t.ctxFunc,
+	}
 	setup(fork)
 
 	return fork
@@ -270,8 +283,9 @@ func (t *tb[T]) get() *core {
 
 type core struct {
 	testing.TB
-	ctx  context.Context
-	tags []LineTag
+	ctx     context.Context
+	tags    []LineTag
+	plugins []Plugin
 }
 
 func (c *core) addLineTags(tags ...LineTag) {
@@ -282,6 +296,7 @@ func (c *core) addLineTags(tags ...LineTag) {
 
 func setup[T constraints.HT[T]](t *tb[T]) {
 	t.Helper()
+	t.ctx = setupPlugins(t.ctx, t, t.plugins...)
 	t.Cleanup(func() {
 		if t.Failed() {
 			for _, tag := range t.get().tags {
