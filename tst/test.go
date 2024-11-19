@@ -89,6 +89,7 @@ type Test interface {
 type T interface {
 	HT[T]
 	constraints.T[T]
+	WithPlugins(plugins ...Plugin) T
 }
 
 // HT extends [TB] with methods for hierarchical test execution taking provided type parameter T.
@@ -201,6 +202,16 @@ func (t *ti[X]) RunContext(name string, f func(context.Context, T)) bool {
 	})
 }
 
+func (t ti[X]) WithPlugins(plugins ...Plugin) T {
+	t.Helper()
+
+	t.tb = t.tb.clone(t.tb.ctx, t.tb.TB)
+	t.tb.plugins = append(t.tb.plugins, plugins...)
+	t.tb.ctx = setupPlugins(t.tb.ctx, t.tb.TB, plugins...)
+
+	return &t
+}
+
 func (t *ti[X]) Parallel() {
 	t.Inner().Parallel()
 }
@@ -296,13 +307,17 @@ func (t *tb[T]) fork(tt T) *tb[T] {
 		cancel(errTestIsDone)
 	})
 
-	fork := &tb[T]{
-		core{tt, ctx, slices.Clip(t.tags), slices.Clip(t.plugins), &sync.Mutex{}},
-		t.ctxFunc,
-	}
+	fork := t.clone(ctx, tt)
 	setup(fork)
 
 	return fork
+}
+
+func (t *tb[T]) clone(ctx context.Context, ttb testing.TB) *tb[T] {
+	return &tb[T]{
+		core{ttb, ctx, slices.Clip(t.tags), slices.Clip(t.plugins), &sync.Mutex{}},
+		t.ctxFunc,
+	}
 }
 
 func (t *tb[T]) sealed() {}
