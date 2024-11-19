@@ -10,13 +10,12 @@ import (
 )
 
 func TestSortMock(tt *testing.T) {
-	t := Build(tt).
-		WithPlugins(mock.NewPlugin()).
-		Done()
+	t := NewT(tt).
+		WithPlugins(mock.NewPlugin())
 
 	m := &sortMock{}
 
-	t.Run("T1", func(t Test) {
+	t.Run("T1", func(t T) {
 		// Example data: []int{3, 1, 4}
 		mock.On(t).During(func() {
 			sort.Sort(m)
@@ -28,7 +27,7 @@ func TestSortMock(tt *testing.T) {
 		))
 	})
 
-	t.Run("T2", func(t Test) {
+	t.Run("T2", func(t T) {
 		// Example data: []int{3, 1, 4}
 		mock.On(t).During(func() {
 			sort.Sort(m)
@@ -42,9 +41,8 @@ func TestSortMock(tt *testing.T) {
 }
 
 func TestStringerMock(tt *testing.T) {
-	t := Build(tt).
-		WithPlugins(mock.NewPlugin()).
-		Done()
+	t := NewT(tt).
+		WithPlugins(mock.NewPlugin())
 
 	m := &stringerMock{}
 
