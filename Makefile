@@ -88,12 +88,15 @@ coverage@/%: test@/%
 
 ## Tidy up
 .PHONY: tidy
-tidy: $(all-modules:%=tidy/%)
+tidy: $(all-modules:%=tidy@/%)
 
 # Tidy up a module
 .PHONY: tidy@/%
 tidy@/%:
 	cd $* && go mod tidy
+.PHONY: tidy@/.
+tidy@/.:
+	go mod tidy
 
 # ---
 
