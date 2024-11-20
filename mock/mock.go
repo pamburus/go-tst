@@ -55,6 +55,7 @@ type mock struct {
 	once         sync.Once
 	typ          reflect.Type
 	methods      map[string]reflect.Method
+	xLocker      sync.Mutex
 }
 
 func (m *mock) get() *mock {
@@ -188,7 +189,7 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 	}
 }
 
-func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
+func (m *mock) expectCall(t test, assertion CallAssertion, lock lockStatus) *expectedCall {
 	ctx := t.Context()
 
 	controller := getController(ctx)
@@ -205,6 +206,10 @@ func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
 
 	calls := m.exectedCalls[controller]
 	if calls == nil {
+		if len(m.exectedCalls) > 0 && (assertion.desc.method.Type.NumIn() == 0 || assertion.desc.method.Type.In(0) != reflect.TypeFor[context.Context]()) {
+			panic("mock: to use methods without context as first argument of the same mock object in parallel tests use `mock.On(t).During(f).Expect(...)`")
+		}
+
 		calls = make(map[*callDescriptor]*expectedCall)
 		m.exectedCalls[controller] = calls
 	}
@@ -225,12 +230,13 @@ func (m *mock) expectCall(t test, assertion CallAssertion) *expectedCall {
 		calls[assertion.desc] = call
 	}
 
-	controller.mu.Lock()
-	defer controller.mu.Unlock()
-
-	controller.mocks[m] = struct{}{}
+	controller.addMock(m, lock)
 
 	return call
+}
+
+func (m *mock) locker() sync.Locker {
+	return &m.xLocker
 }
 
 // ---

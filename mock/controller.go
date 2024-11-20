@@ -4,6 +4,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/TheCount/go-multilocker/multilocker"
 )
 
 // NewController creates a new mock controller.
@@ -31,8 +33,53 @@ type Controller struct {
 	done  atomic.Bool
 }
 
+func (c *Controller) AtomicCheck(t test, f func(), assertions ...Assertion) {
+	c.tb.Helper()
+
+	lockers := make(map[sync.Locker]struct{}, 1+len(assertions))
+	lockers[&c.mu] = struct{}{}
+	for _, a := range assertions {
+		for l := range a.lockers() {
+			lockers[l] = struct{}{}
+		}
+	}
+
+	ml := multilocker.New(keys(lockers)...)
+	ml.Lock()
+	defer ml.Unlock()
+
+	expect(t, locked, assertions...)
+
+	pv := catch(f)
+	if pv != nil {
+		if err, ok := pv.(error); ok && IsUnexpectedCallError(err) {
+			t.Error(err)
+		} else {
+			panic(pv)
+		}
+	}
+
+	c.checkpoint()
+}
+
 // Checkpoint ensures all pending assertions are satisfied.
 func (c *Controller) Checkpoint() {
+	c.tb.Helper()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.checkpoint()
+}
+
+// Finish ensures all assertions are satisfied and forbids adding new assertions.
+func (c *Controller) Finish() {
+	c.tb.Helper()
+	c.done.Store(true)
+	c.Checkpoint()
+}
+
+func (c *Controller) checkpoint() {
 	c.tb.Helper()
 
 	for mock := range c.mocks {
@@ -49,9 +96,17 @@ func (c *Controller) Checkpoint() {
 	}
 }
 
-// Finish ensures all assertions are satisfied and forbids adding new assertions.
-func (c *Controller) Finish() {
+func (c *Controller) addMock(m *mock, lock lockStatus) {
 	c.tb.Helper()
-	c.done.Store(true)
-	c.Checkpoint()
+
+	if c.done.Load() {
+		panic("mock: can't add expected calls to a test that has already finished")
+	}
+
+	if lock == unlocked {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+	}
+
+	c.mocks[m] = struct{}{}
 }

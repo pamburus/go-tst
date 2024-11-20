@@ -54,11 +54,23 @@ func InOrder(calls ...CallAssertion) Assertion {
 		calls[i].After(calls[i-1])
 	}
 
-	return assertionFunc(func(t test) {
-		for _, call := range calls {
-			call.setup(t)
-		}
-	})
+	return assertionFunc{
+		func(t test, lock lockStatus) {
+			for _, call := range calls {
+				call.setup(t, lock)
+			}
+		},
+		func() map[sync.Locker]struct{} {
+			lockers := make(map[sync.Locker]struct{}, len(calls))
+			for _, call := range calls {
+				for locker := range call.lockers() {
+					lockers[locker] = struct{}{}
+				}
+			}
+
+			return lockers
+		},
+	}
 }
 
 // HandleThisCall handles the current method call of a mock object.
@@ -271,12 +283,21 @@ func (a CallAssertion) Return(values ...any) CallAssertion {
 	return a
 }
 
-func (a CallAssertion) setup(t test) {
+func (a CallAssertion) setup(t test, lock lockStatus) {
 	if a.desc == nil {
-		panic("mock: ExpectedCall must be created by Call function")
+		panic("mock: ExpectedCall must be created by Call")
 	}
 
-	a.desc.mock.expectCall(t, a)
+	a.desc.mock.expectCall(t, a, lock)
+}
+
+func (a CallAssertion) lockers() map[sync.Locker]struct{} {
+	lockers := make(map[sync.Locker]struct{}, 1)
+	if a.desc != nil {
+		lockers[a.desc.mock.locker()] = struct{}{}
+	}
+
+	return lockers
 }
 
 func (a CallAssertion) countConstraint() intrange.PartialRange[int64] {

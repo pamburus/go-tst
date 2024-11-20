@@ -1,13 +1,13 @@
 // Package mock provides a way to create and manage mock objects.
 package mock
 
+import "sync"
+
 // Expect expects the given assertions to be true.
 func Expect(t test, assertions ...Assertion) {
 	t.Helper()
 
-	for _, assertion := range assertions {
-		assertion.setup(t)
-	}
+	expect(t, unlocked, assertions...)
 }
 
 // ---
@@ -37,36 +37,43 @@ type ExpectationBuilder struct {
 func (b ExpectationBuilder) Expect(assertions ...Assertion) {
 	b.t.Helper()
 
-	Expect(b.t, assertions...)
+	ctrl := mustGetController(b.t.Context())
 
-	pv := catch(b.f)
-	if pv != nil {
-		if err, ok := pv.(error); ok && IsUnexpectedCallError(err) {
-			b.t.Error(err)
-		} else {
-			panic(pv)
-		}
-	}
-
-	mustGetController(b.t.Context()).Checkpoint()
+	ctrl.AtomicCheck(b.t, b.f, assertions...)
 }
 
 // ---
 
 // Assertion is a single assertion for a mock object or a group of assertions.
 type Assertion interface {
-	setup(test)
+	setup(test, lockStatus)
+	lockers() map[sync.Locker]struct{}
 }
 
 // ---
 
-type assertionFunc func(test)
+type assertionFunc struct {
+	f func(test, lockStatus)
+	l func() map[sync.Locker]struct{}
+}
 
-func (f assertionFunc) setup(t test) {
-	f(t)
+func (f assertionFunc) setup(t test, l lockStatus) {
+	f.f(t, l)
+}
+
+func (f assertionFunc) lockers() map[sync.Locker]struct{} {
+	return f.l()
 }
 
 // ---
+
+func expect(t test, lock lockStatus, assertions ...Assertion) {
+	t.Helper()
+
+	for _, assertion := range assertions {
+		assertion.setup(t, lock)
+	}
+}
 
 func catch(f func()) (r any) {
 	defer func() {
@@ -77,3 +84,12 @@ func catch(f func()) (r any) {
 
 	return nil
 }
+
+// ---
+
+type lockStatus int
+
+const (
+	unlocked lockStatus = iota
+	locked
+)

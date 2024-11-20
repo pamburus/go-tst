@@ -16,6 +16,7 @@ func TestSortMock(tt *testing.T) {
 	m := &sortMock{}
 
 	t.Run("T1", func(t T) {
+		t.Parallel()
 		// Example data: []int{3, 1, 4}
 		mock.On(t).During(func() {
 			sort.Sort(m)
@@ -28,6 +29,7 @@ func TestSortMock(tt *testing.T) {
 	})
 
 	t.Run("T2", func(t T) {
+		t.Parallel()
 		// Example data: []int{3, 1, 4}
 		mock.On(t).During(func() {
 			sort.Sort(m)
