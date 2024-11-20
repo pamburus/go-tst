@@ -50,14 +50,17 @@ func (c *Controller) AtomicCheck(t test, f func(), assertions ...Assertion) {
 
 	expect(t, locked, assertions...)
 
-	pv := catch(f)
-	if pv != nil {
-		if err, ok := pv.(error); ok && IsUnexpectedCallError(err) {
-			t.Error(err)
-		} else {
-			panic(pv)
+	defer func() {
+		if pv := recover(); pv != nil {
+			if err, ok := pv.(error); ok && IsUnexpectedCallError(err) {
+				t.Error(err)
+			} else {
+				panic(pv)
+			}
 		}
-	}
+	}()
+
+	f()
 
 	c.checkpoint()
 }

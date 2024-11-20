@@ -1,6 +1,7 @@
 package mock_test
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -73,6 +74,48 @@ func TestStringerMock(tt *testing.T) {
 	))
 }
 
+func TestContextDescriptorMock(tt *testing.T) {
+	t := NewT(tt).
+		WithPlugins(mock.NewPlugin())
+
+	m := &contextDescriptorMock{}
+
+	t.RunContext("T1", func(ctx context.Context, t T) {
+		t.Parallel()
+
+		mock.On(t).During(func() {
+			t.Expect(m.Describe(ctx)).To(Equal("hello"))
+			t.Expect(m.Describe(ctx)).To(Equal("friend"))
+		}).Expect(
+			mock.Call(m, "Describe", ctx).Return("hello"),
+			mock.Call(m, "Describe", ctx).Return("friend"),
+		)
+	})
+
+	t.RunContext("T2", func(ctx context.Context, t T) {
+		t.Parallel()
+
+		mock.On(t).During(func() {
+			t.Expect(m.Describe(ctx)).To(Equal("bye"))
+			t.Expect(m.Describe(ctx)).To(Equal("stranger"))
+		}).Expect(
+			mock.Call(m, "Describe", ctx).Return("bye"),
+			mock.Call(m, "Describe", ctx).Return("stranger"),
+		)
+	})
+
+	// t.RunContext("T3", func(ctx context.Context, t T) {
+	// 	t.Parallel()
+
+	// 	mock.Expect(t,
+	// 		mock.Call(m, "Describe", ctx).Return("bye"),
+	// 		mock.Call(m, "Describe", ctx).Return("stranger"),
+	// 	)
+	// 	t.Expect(m.Describe(ctx)).To(Equal("bye"))
+	// 	t.Expect(m.Describe(ctx)).To(Equal("stranger"))
+	// })
+}
+
 // ---
 
 var _ fmt.Stringer = &stringerMock{}
@@ -106,4 +149,21 @@ func (m *sortMock) Less(i, j int) (result bool) {
 
 func (m *sortMock) Swap(i, j int) {
 	mock.HandleThisCall(m, mock.Inputs(i, j), mock.Outputs())
+}
+
+// ---
+
+type contextDescriptor interface {
+	Describe(context.Context) string
+}
+
+var _ contextDescriptor = &contextDescriptorMock{}
+
+type contextDescriptorMock struct {
+	mock.Mock[contextDescriptor]
+}
+
+func (m *contextDescriptorMock) Describe(ctx context.Context) (result string) {
+	mock.HandleThisCall(m, mock.Inputs(ctx), mock.Outputs(&result))
+	return
 }

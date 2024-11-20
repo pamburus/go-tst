@@ -49,8 +49,8 @@ type AnyMockFor[T any] interface {
 // ---
 
 type mock struct {
-	exectedCalls map[*Controller]map[*callDescriptor]*expectedCall
-	calls        []*call //nolint:unused // later // TODO: use
+	exectedCalls map[*Controller]map[*callDescriptor]*expectedCall // TODO: replace value type with ordered map
+	calls        []*call                                           //nolint:unused // later // TODO: use
 	mu           sync.Mutex
 	once         sync.Once
 	typ          reflect.Type
@@ -98,7 +98,7 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 	}
 
 	for i, arg := range in {
-		if reflect.TypeOf(arg) != method.Type.In(i) {
+		if !reflect.TypeOf(arg).ConvertibleTo(method.Type.In(i)) {
 			panic(fmt.Sprintf("mock: method %s.%s requires input parameter #%d to be of type %v, got %v",
 				m.typ,
 				method.Name,
@@ -110,7 +110,7 @@ func (m *mock) handleCall(ctx context.Context, skip int, methodName string, in [
 	}
 
 	for i, arg := range out {
-		if reflect.TypeOf(arg) != reflect.PointerTo(method.Type.Out(i)) {
+		if !reflect.TypeOf(arg).ConvertibleTo(reflect.PointerTo(method.Type.Out(i))) {
 			panic(fmt.Sprintf("mock: method %s.%s requires output parameter #%d to be of type %v, got %v",
 				m.typ,
 				method.Name,
