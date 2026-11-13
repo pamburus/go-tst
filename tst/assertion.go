@@ -405,7 +405,7 @@ func (a nilValue) check(actual []any) ([]bool, error) {
 
 		v := reflect.ValueOf(actual[i])
 		switch v.Kind() {
-		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 			result[i] = v.IsNil()
 		default:
 			result[i] = false
@@ -547,7 +547,7 @@ func (a haveLen) check(actual []any) ([]bool, error) {
 		switch v.Kind() {
 		case reflect.Chan, reflect.Map, reflect.Slice, reflect.Array, reflect.String:
 			result[i], err = test(i, v.Len(), expected(i))
-		case reflect.Ptr:
+		case reflect.Pointer:
 			if v.Elem().Kind() == reflect.Array {
 				result[i], err = test(i, v.Len(), expected(i))
 			} else {
@@ -556,7 +556,8 @@ func (a haveLen) check(actual []any) ([]bool, error) {
 		default:
 			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), typeOf(expected(i))}
 		}
-		if err != nil { //nolint:wsl // false positive
+
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -599,7 +600,7 @@ func (a haveField) check(actual []any) ([]bool, error) {
 	for i := range actual {
 		v := reflect.ValueOf(actual[i])
 
-		for v.Kind() == reflect.Ptr {
+		for v.Kind() == reflect.Pointer {
 			v = v.Elem()
 		}
 
@@ -615,7 +616,7 @@ func (a haveField) check(actual []any) ([]bool, error) {
 				result[i] = r[0]
 			}
 		default:
-			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), "struct"}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), reflect.Struct.String()}
 		}
 	}
 
@@ -646,7 +647,7 @@ func (a contain) check(actual []any) ([]bool, error) {
 	for i := range actual {
 		v := reflect.ValueOf(actual[i])
 
-		for v.Kind() == reflect.Ptr {
+		for v.Kind() == reflect.Pointer {
 			v = v.Elem()
 		}
 
@@ -696,12 +697,12 @@ func (a beStruct) check(actual []any) ([]bool, error) {
 	for i := range actual {
 		v := reflect.ValueOf(actual[i])
 
-		for v.Kind() == reflect.Ptr {
+		for v.Kind() == reflect.Pointer {
 			v = v.Elem()
 		}
 
 		if v.Kind() != reflect.Struct {
-			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), "struct"}
+			return nil, errUnexpectedValueTypeError{i, typeOf(actual[i]), reflect.Struct.String()}
 		}
 
 		result[i] = true

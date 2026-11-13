@@ -1,42 +1,6 @@
-linters-settings:
-  dupl:
-    threshold: 150
-  exhaustive:
-    default-signifies-exhaustive: false
-  funlen:
-    lines: 100
-    statements: 50
-  goconst:
-    min-len: 2
-    min-occurrences: 2
-  gocyclo:
-    min-complexity: 32
-  goimports:
-    local-prefixes: 'github.com/pamburus'
-  lll:
-    line-length: 140
-  nolintlint:
-    allow-unused: false # report any unused nolint directives
-    require-explanation: true # require an explanation for nolint directives
-    require-specific: true # don't require nolint directives to be specific about which linter is being skipped
-  tagliatelle:
-    # Check the struck tag name case.
-    case:
-      # Use the struct field name to check the name of the struct tag.
-      # Default: false
-      use-field-name: true
-      rules:
-        # Any struct tag type can be used.
-        # Support string case: `camel`, `pascal`, `kebab`, `snake`, `upperSnake`, `goCamel`, `goPascal`, `goKebab`, `goSnake`, `upper`, `lower`, `header`.
-        json: kebab
-        yaml: kebab
-  wsl:
-    allow-cuddle-declarations: true
-
+version: "2"
 linters:
-  # please, do not use `enable-all`: it's deprecated and will be removed soon.
-  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-  disable-all: true
+  default: none
   enable:
     - asasalint
     - asciicheck
@@ -67,14 +31,10 @@ linters:
     - gocyclo
     - godot
     - godox
-    - gofmt
-    - gofumpt
     - goheader
-    - goimports
     - gomoddirectives
     - goprintffuncname
     - gosec
-    - gosimple
     - gosmopolitan
     - govet
     - grouper
@@ -107,10 +67,8 @@ linters:
     - spancheck
     - sqlclosecheck
     - staticcheck
-    - stylecheck
     - tagalign
     - tagliatelle
-    - tenv
     - testableexamples
     - testifylint
     - testpackage
@@ -123,22 +81,69 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
-    - wsl
+    - wsl_v5
     - zerologlint
-
-issues:
-  # Disable this option because it causes golint to hide almost all issues
-  exclude-use-default: false
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    - path: '_test\.go$'
-      linters:
-        - dupl
-        - gocognit
-        - goconst
-        - gosec
-        - maintidx
-        - nlreturn
-    - text: '^singleCaseSwitch'
-      linters:
-        - gocritic
+  settings:
+    dupl:
+      threshold: 150
+    exhaustive:
+      default-signifies-exhaustive: false
+    funlen:
+      lines: 100
+      statements: 50
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocyclo:
+      min-complexity: 32
+    lll:
+      line-length: 140
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    tagliatelle:
+      case:
+        rules:
+          json: kebab
+          yaml: kebab
+        use-field-name: true
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+      disable:
+        - decl
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - dupl
+          - gocognit
+          - goconst
+          - gosec
+          - maintidx
+          - nlreturn
+        path: _test\.go$
+      - linters:
+          - gocritic
+        text: ^singleCaseSwitch
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/pamburus
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

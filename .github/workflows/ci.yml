@@ -13,32 +13,43 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: '1.23'
-  GOLANGCI_LINT_VERSION: 'v1.61'
+  GO_VERSION: '1.27'
+  GOLANGCI_LINT_VERSION: 'v2.15.0'
 
 jobs:
   lint:
     name: Run linters
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: "**/*.sum"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
 
   test:
-    name: Run unit tests
+    name: Run unit tests (${{ matrix.go }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Minimum supported version.
+          # GOTOOLCHAIN=local makes the job fail instead of silently switching to a newer toolchain.
+          # The exact .0 release also catches dependency updates that raise the go directive to a newer patch.
+          - go: '1.22.0'
+            gotoolchain: local
+          - go: '1.27'
+    env:
+      GOTOOLCHAIN: ${{ matrix.gotoolchain }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version: ${{ matrix.go }}
           cache-dependency-path: "**/*.sum"
       - name: go test
         run: go test -fullpath -race ./...
