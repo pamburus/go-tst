@@ -13,7 +13,6 @@
   ],
   "automergeType": "pr",
   "automergeStrategy": "squash",
-  "platformAutomerge": false,
   "packageRules": [
     {
       "description": "Auto-merge non-major updates once all checks pass",

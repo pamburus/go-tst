@@ -15,7 +15,9 @@ jobs:
     name: Prepare or publish release
     runs-on: ubuntu-latest
     steps:
+      # A personal access token is needed so that CI runs on release PRs; PRs opened with GITHUB_TOKEN do not trigger workflows.
       - uses: googleapis/release-please-action@v5
         with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
