@@ -11,6 +11,7 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
+  "constraintsFiltering": "strict",
   "automergeType": "pr",
   "automergeStrategy": "squash",
   "platformAutomerge": false,
