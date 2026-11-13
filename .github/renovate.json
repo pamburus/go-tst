@@ -26,14 +26,14 @@
       "automerge": true
     },
     {
-      "description": "Raising the go directive affects library consumers, so review it manually",
+      "description": "Keep the go directive unchanged, since it sets the minimum Go version required by consumers of this library",
       "matchDepNames": [
         "go"
       ],
       "matchManagers": [
         "gomod"
       ],
-      "automerge": false
+      "enabled": false
     }
   ]
 }
