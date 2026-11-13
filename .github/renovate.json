@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(build)",
+    ":semanticCommitScope(deps)"
+  ],
+  "semanticCommits": "enabled",
+  "platformCommit": "enabled",
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "description": "Auto-merge non-major updates once all checks pass",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Raising the go directive affects library consumers, so review it manually",
+      "matchDepNames": [
+        "go"
+      ],
+      "matchManagers": [
+        "gomod"
+      ],
+      "automerge": false
+    }
+  ]
+}
